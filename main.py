@@ -636,7 +636,7 @@ class AnoraBot:
         await self.application.bot.delete_webhook(drop_pending_updates=True)
         await self.application.bot.set_webhook(url=webhook_url, allowed_updates=['message'])
         info = await self.application.bot.get_webhook_info()
-        return info.url == webhook_url
+        return bool(info.url)
     
     async def start_web_server(self):
         settings = get_settings()
