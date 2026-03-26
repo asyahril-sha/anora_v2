@@ -2,28 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    make \
-    curl \
-    sqlite3 \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y gcc g++ make curl sqlite3 && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the application (semua file di root)
 COPY . .
 
-# Create non-root user
 RUN useradd -m -u 1000 mylove && chown -R mylove:mylove /app
 USER mylove
 
-# Run the bot (langsung main.py, bukan anora_v2.main)
 CMD ["python", "main.py"]
