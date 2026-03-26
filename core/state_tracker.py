@@ -180,24 +180,24 @@ class StateTracker:
         return ", ".join(parts)
     
     def get_clothing_state_for_prompt(self) -> str:
-    removal_text = ""
-    for i, r in enumerate(self.clothing_removal_order[-5:]):
-        # Pisahkan jadi beberapa baris biar lebih aman
-        layer = r['layer']
-        method = r['method']
-        waktu = datetime.fromtimestamp(r['timestamp']).strftime('%H:%M:%S')
-        removal_text += f"- {i+1}. {layer} ({method}) pada {waktu}\n"
+        removal_text = ""
+        for i, r in enumerate(self.clothing_removal_order[-5:]):
+            # Pisahkan jadi beberapa baris biar lebih aman
+            layer = r['layer']
+            method = r['method']
+            waktu = datetime.fromtimestamp(r['timestamp']).strftime('%H:%M:%S')
+            removal_text += f"- {i+1}. {layer} ({method}) pada {waktu}\n"
     
-    return f"""
-PAKAIAN SAAT INI:
-- Hijab: {'PAKAI' if self.clothing['hijab']['on'] else 'TELANGGAL'} ({self.clothing['hijab']['color'] if self.clothing['hijab']['on'] else 'rambut terurai'})
-- Baju Atas: {'PAKAI' if self.clothing['top']['on'] else 'TELANGGAL'} ({self.clothing['top']['type'] if self.clothing['top']['on'] else 'telanjang dada'})
-- Bra: {'PAKAI' if self.clothing['bra']['on'] else 'TELANGGAL'} ({self.clothing['bra']['color'] if self.clothing['bra']['on'] else ''})
-- Celana Dalam: {'PAKAI' if self.clothing['cd']['on'] else 'TELANGGAL'} ({self.clothing['cd']['color'] if self.clothing['cd']['on'] else ''})
+        return f"""
+    PAKAIAN SAAT INI:
+    - Hijab: {'PAKAI' if self.clothing['hijab']['on'] else 'TELANGGAL'} ({self.clothing['hijab']['color'] if self.clothing['hijab']['on'] else 'rambut terurai'})
+    - Baju Atas: {'PAKAI' if self.clothing['top']['on'] else 'TELANGGAL'} ({self.clothing['top']['type'] if self.clothing['top']['on'] else 'telanjang dada'})
+    - Bra: {'PAKAI' if self.clothing['bra']['on'] else 'TELANGGAL'} ({self.clothing['bra']['color'] if self.clothing['bra']['on'] else ''})
+    - Celana Dalam: {'PAKAI' if self.clothing['cd']['on'] else 'TELANGGAL'} ({self.clothing['cd']['color'] if self.clothing['cd']['on'] else ''})
 
-URUTAN MENANGGALKAN PAKAIAN (WAJIB DIINGAT):
-{removal_text if removal_text else '- Belum ada yang dilepas'}
-"""
+    URUTAN MENANGGALKAN PAKAIAN (WAJIB DIINGAT):
+    {removal_text if removal_text else '- Belum ada yang dilepas'}
+    """
     
     # =========================================================================
     # INTIMACY METHODS
