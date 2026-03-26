@@ -583,7 +583,8 @@ async def webhook_handler(request):
     """Handle Telegram webhook"""
     global _application
     
-    # Handle GET request (browser access) - ini normal
+    logger.info(f"📨 Webhook called: {request.method} {request.path}")
+    
     if request.method == 'GET':
         return web.Response(
             text="This endpoint is for Telegram webhook. Use POST method.",
@@ -591,15 +592,12 @@ async def webhook_handler(request):
         )
     
     if not _application:
+        logger.error("❌ Application not ready")
         return web.Response(status=503, text='Bot not ready')
     
     try:
         update_data = await request.json()
-        if not update_data:
-            return web.Response(status=400, text='No data')
-        
-        # Log incoming update (debug)
-        logger.info(f"📨 Webhook received: {update_data.get('message', {}).get('text', 'no text')}")
+        logger.info(f"📨 Webhook received update: {update_data.get('message', {}).get('text', 'no text')}")
         
         update = Update.de_json(update_data, _application.bot)
         await _application.process_update(update)
