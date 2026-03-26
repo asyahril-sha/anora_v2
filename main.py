@@ -634,7 +634,7 @@ class AnoraBot:
             return False
         webhook_url = f"https://{railway_url}{settings.webhook.path}"
         await self.application.bot.delete_webhook(drop_pending_updates=True)
-        await self.application.bot.set_webhook(url=webhook_url, allowed_updates=['message', 'callback_query'])
+        await self.application.bot.set_webhook(url=webhook_url, allowed_updates=['message'])
         info = await self.application.bot.get_webhook_info()
         return info.url == webhook_url
     
@@ -654,7 +654,7 @@ class AnoraBot:
         await self.init_anora()
         self.application = await self.init_application()
         await self.application.initialize()
-        await self.application.run_polling()
+        await self.application.start()
         
         self._save_task = asyncio.create_task(save_state_loop())
         self._backup_task = asyncio.create_task(auto_backup_loop())
