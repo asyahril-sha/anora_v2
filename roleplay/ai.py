@@ -231,12 +231,21 @@ class RoleplayAI:
         
         loc = brain.get_location_data()
         
+        short_term = getattr(brain.tracker, 'short_term', []) if hasattr(brain, 'tracker') else []
+
         recent = ""
-        for e in brain.short_term[-8:]:
-            if e.pesan_mas:
-                recent += f"Mas: {e.pesan_mas[:100]}\n"
-            if e.pesan_nova:
-                recent += f"Nova: {e.pesan_nova[:100]}\n"
+        for e in short_term[-8:]:
+            if isinstance(e, dict):
+                if e.get('pesan_mas'):
+                    recent += f"Mas: {e['pesan_mas'][:100]}\n"
+                if e.get('pesan_nova'):
+                    recent += f"Nova: {e['pesan_nova'][:100]}\n"
+            else:
+                if hasattr(e, 'pesan_mas') and e.pesan_mas:
+                    recent += f"Mas: {e.pesan_mas[:100]}\n"
+                if hasattr(e, 'pesan_nova') and e.pesan_nova:
+                    recent += f"Nova: {e.pesan_nova[:100]}\n"
+
         recent += f"Mas (sekarang): {pesan_mas[:100]}\n"
         
         style_guideline = self.emotional.get_style_for_prompt()
