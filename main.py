@@ -664,6 +664,7 @@ class AnoraBot:
             logger.info("✅ Webhook mode activated!")
         else:
             raise RuntimeError("❌ Webhook gagal! Jangan fallback ke polling di Railway")
+            await self.start_web_server()
         
         logger.info("=" * 70)
         logger.info("✨ ANORA-V2 is ready! Kirim /nova untuk panggil Nova")
