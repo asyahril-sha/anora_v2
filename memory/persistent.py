@@ -489,15 +489,18 @@ class PersistentMemory:
                     feelings, relationship, complete_state, updated_at
                 ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
-                brain.location_type.value, brain.location_detail.value,
+                brain.location_type.value, 
+                brain.location_detail.value,
                 brain.activity_nova.value if hasattr(brain.activity_nova, 'value') else str(brain.activity_nova),
-                brain.activity_mas, json.dumps(brain.clothing.to_dict()),
-                json.dumps(brain.clothing.to_dict()),
+                brain.activity_mas, 
+                json.dumps(brain.clothing.to_dict(), default=safe_serialize),
+                json.dumps(brain.clothing.to_dict(), default=safe_serialize),
                 brain.mood_nova.value if hasattr(brain.mood_nova, 'value') else str(brain.mood_nova),
                 brain.mood_mas.value if hasattr(brain.mood_mas, 'value') else str(brain.mood_mas),
-                json.dumps(brain.feelings.to_dict()),
-                json.dumps(brain.relationship_state.to_dict()),
-                json.dumps(brain.complete_state, default=safe_serialize), time.time()
+                json.dumps(brain.feelings.to_dict(), default=safe_serialize),
+                json.dumps(brain.relationship_state.to_dict(), default=safe_serialize),
+                json.dumps(brain.complete_state, default=safe_serialize), 
+                time.time()
             ))
             await self._conn.commit()
         except Exception as e:
