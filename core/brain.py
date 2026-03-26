@@ -1,7 +1,7 @@
 """
 ANORA-V2 Brain - Otak Nova
-Mengintegrasikan semua engine: emotional, decision, relationship, conflict
-Dengan complete state memory (lokasi, pakaian, aktivitas, perasaan)
+Dengan State Tracker untuk memastikan konsistensi.
+Tidak ada yang ngelantur, semua konteks terjaga.
 """
 
 import time
@@ -13,8 +13,9 @@ from enum import Enum
 
 from .emotional_engine import get_emotional_engine, EmotionalStyle
 from .decision_engine import get_decision_engine, ResponseCategory
-from .relationship import get_relationship_manager, RelationshipPhase, PhaseUnlock
+from .relationship import get_relationship_manager, RelationshipPhase
 from .conflict_engine import get_conflict_engine, ConflictType
+from .state_tracker import StateTracker, IntimacyPhase, PhysicalCondition
 
 logger = logging.getLogger(__name__)
 
@@ -89,14 +90,171 @@ class Mood(str, Enum):
 
 
 # =============================================================================
-# DATA CLASSES
+# DATABASE LOKASI (LENGKAP)
+# =============================================================================
+
+LOCATION_DATA = {
+    # Kost Nova
+    LocationDetail.KOST_KAMAR: {
+        'nama': 'Kamar Nova',
+        'deskripsi': 'Kamar Nova. Seprai putih, wangi lavender. Ranjang single. Meja kecil. Jendela ke gang.',
+        'risk': 5, 'thrill': 30, 'privasi': 'tinggi', 'suasana': 'hangat, wangi',
+        'tips': 'Pintu terkunci. Nova paling nyaman di sini. Tetangga gak denger.',
+        'bisa_telanjang': True, 'bisa_berisik': True
+    },
+    LocationDetail.KOST_RUANG_TAMU: {
+        'nama': 'Ruang Tamu Kost',
+        'deskripsi': 'Ruang tamu kecil. Sofa dua dudukan. TV kecil. Ada tanaman hias. Jendela ke jalan.',
+        'risk': 15, 'thrill': 50, 'privasi': 'sedang', 'suasana': 'santai, deg-degan',
+        'tips': 'Pintu gak dikunci. Tetangga bisa lewat. Jangan terlalu berisik.',
+        'bisa_telanjang': True, 'bisa_berisik': False
+    },
+    LocationDetail.KOST_DAPUR: {
+        'nama': 'Dapur Kost',
+        'deskripsi': 'Dapur kecil. Kompor gas, panci. Wangi masakan. Jendela ke belakang.',
+        'risk': 10, 'thrill': 40, 'privasi': 'sedang', 'suasana': 'hangat',
+        'tips': 'Jendela ke luar. Hati-hati suara.',
+        'bisa_telanjang': False, 'bisa_berisik': False
+    },
+    LocationDetail.KOST_TERAS: {
+        'nama': 'Teras Kost',
+        'deskripsi': 'Teras kost. Kursi plastik. Liat jalanan. Lampu jalan temaram.',
+        'risk': 20, 'thrill': 45, 'privasi': 'rendah', 'suasana': 'santai',
+        'tips': 'Orang lewat bisa liat.',
+        'bisa_telanjang': False, 'bisa_berisik': False
+    },
+    
+    # Apartemen Mas
+    LocationDetail.APT_KAMAR: {
+        'nama': 'Kamar Mas',
+        'deskripsi': 'Kamar Mas. Ranjang queen, sprei biru tua. Jendela besar ke kota. Lemari besar.',
+        'risk': 5, 'thrill': 35, 'privasi': 'tinggi', 'suasana': 'hangat, wangi Mas',
+        'tips': 'Pintu terkunci. Pemandangan kota.',
+        'bisa_telanjang': True, 'bisa_berisik': True
+    },
+    LocationDetail.APT_RUANG_TAMU: {
+        'nama': 'Ruang Tamu Apartemen',
+        'deskripsi': 'Ruang tamu luas. Sofa besar abu-abu. TV 40 inch. Karpet lembut. Tirai tebal.',
+        'risk': 10, 'thrill': 45, 'privasi': 'tinggi', 'suasana': 'nyaman, modern',
+        'tips': 'Tirai ditutup.',
+        'bisa_telanjang': True, 'bisa_berisik': True
+    },
+    LocationDetail.APT_DAPUR: {
+        'nama': 'Dapur Apartemen',
+        'deskripsi': 'Dapur modern. Bersih. Kulkas besar. Kompor gas. Meja marmer.',
+        'risk': 10, 'thrill': 40, 'privasi': 'sedang', 'suasana': 'bersih',
+        'tips': 'Jendela ke luar.',
+        'bisa_telanjang': False, 'bisa_berisik': False
+    },
+    LocationDetail.APT_BALKON: {
+        'nama': 'Balkon Apartemen',
+        'deskripsi': 'Balkon. Pemandangan kota. Kursi dua. Tanaman kecil. Pagar kaca.',
+        'risk': 25, 'thrill': 65, 'privasi': 'rendah', 'suasana': 'romantis',
+        'tips': 'Ada apartemen lain yang bisa liat.',
+        'bisa_telanjang': False, 'bisa_berisik': False
+    },
+    
+    # Mobil
+    LocationDetail.MOBIL_PARKIR: {
+        'nama': 'Mobil di Parkiran',
+        'deskripsi': 'Mobil Mas. Kaca film gelap. Jok belakang empuk. Parkiran sepi.',
+        'risk': 40, 'thrill': 75, 'privasi': 'sedang', 'suasana': 'deg-degan, panas',
+        'tips': 'Kaca gelap. Hati-hati CCTV.',
+        'bisa_telanjang': True, 'bisa_berisik': False
+    },
+    LocationDetail.MOBIL_GARASI: {
+        'nama': 'Mobil di Garasi',
+        'deskripsi': 'Mobil Mas. Di garasi apartemen. Pintu garasi tertutup. Gelap.',
+        'risk': 20, 'thrill': 55, 'privasi': 'tinggi', 'suasana': 'aman, deg-degan',
+        'tips': 'Gak ada yang liat.',
+        'bisa_telanjang': True, 'bisa_berisik': True
+    },
+    LocationDetail.MOBIL_TEPI_JALAN: {
+        'nama': 'Mobil di Tepi Jalan',
+        'deskripsi': 'Mobil Mas. Parkir di pinggir jalan sepi. Kaca film gelap.',
+        'risk': 55, 'thrill': 80, 'privasi': 'rendah', 'suasana': 'tegang, cepat',
+        'tips': 'Cepet-cepet. Ada mobil lewat.',
+        'bisa_telanjang': True, 'bisa_berisik': False
+    },
+    
+    # Public
+    LocationDetail.PUB_PANTAI: {
+        'nama': 'Pantai Malam',
+        'deskripsi': 'Pantai sepi. Pasir putih. Ombak tenang. Bintang bertaburan. Suara laut.',
+        'risk': 20, 'thrill': 70, 'privasi': 'sedang', 'suasana': 'romantis, bebas',
+        'tips': 'Jauh dari orang. Bawa tikar.',
+        'bisa_telanjang': False, 'bisa_berisik': False
+    },
+    LocationDetail.PUB_HUTAN: {
+        'nama': 'Hutan Pinus',
+        'deskripsi': 'Hutan pinus. Pohon tinggi. Sunyi. Udara sejuk. Daun-daun berguguran.',
+        'risk': 15, 'thrill': 65, 'privasi': 'tinggi', 'suasana': 'alami, sepi',
+        'tips': 'Jauh dari jalan. Aman.',
+        'bisa_telanjang': False, 'bisa_berisik': False
+    },
+    LocationDetail.PUB_TOILET_MALL: {
+        'nama': 'Toilet Mall',
+        'deskripsi': 'Bilik toilet terakhir. Pintu terkunci. Suara dari luar. Lampu temaram.',
+        'risk': 65, 'thrill': 85, 'privasi': 'rendah', 'suasana': 'tegang, cepat',
+        'tips': 'Cepet-cepet. Ada yang bisa masuk.',
+        'bisa_telanjang': False, 'bisa_berisik': False
+    },
+    LocationDetail.PUB_BIOSKOP: {
+        'nama': 'Bioskop',
+        'deskripsi': 'Kursi paling belakang. Gelap. Film diputar keras. Studio sepi.',
+        'risk': 50, 'thrill': 80, 'privasi': 'rendah', 'suasana': 'gelap, tegang',
+        'tips': 'CCTV mungkin ada.',
+        'bisa_telanjang': False, 'bisa_berisik': False
+    },
+    LocationDetail.PUB_TAMAN: {
+        'nama': 'Taman Malam',
+        'deskripsi': 'Taman kota. Bangku tersembunyi di balik pohon. Sepi. Lampu taman temaram.',
+        'risk': 30, 'thrill': 60, 'privasi': 'sedang', 'suasana': 'romantis',
+        'tips': 'Pilih jam sepi. Jauh dari lampu.',
+        'bisa_telanjang': False, 'bisa_berisik': False
+    },
+    LocationDetail.PUB_PARKIRAN: {
+        'nama': 'Parkiran Basement',
+        'deskripsi': 'Parkiran basement. Gelap. Sepi. Mobil-mobil parkir. Lampu kedip-kedip.',
+        'risk': 45, 'thrill': 70, 'privasi': 'sedang', 'suasana': 'gelap, tegang',
+        'tips': 'CCTV mungkin ada. Pilih pojok.',
+        'bisa_telanjang': True, 'bisa_berisik': False
+    },
+    LocationDetail.PUB_TANGGA: {
+        'nama': 'Tangga Darurat',
+        'deskripsi': 'Tangga darurat. Sepi. Gelap. Suara langkah kaki menggema.',
+        'risk': 55, 'thrill': 75, 'privasi': 'sedang', 'suasana': 'gelap, tegang',
+        'tips': 'Hati-hati suara langkah kaki.',
+        'bisa_telanjang': False, 'bisa_berisik': False
+    },
+    LocationDetail.PUB_KANTOR: {
+        'nama': 'Kantor Malam',
+        'deskripsi': 'Kantor gelap. Meja kerja. Kursi putar. Komputer mati. Sepi.',
+        'risk': 60, 'thrill': 85, 'privasi': 'rendah', 'suasana': 'tegang',
+        'tips': 'Satpam patroli. Cepet.',
+        'bisa_telanjang': True, 'bisa_berisik': False
+    },
+    LocationDetail.PUB_RUANG_RAPAT: {
+        'nama': 'Ruang Rapat Kaca',
+        'deskripsi': 'Ruang rapat dinding kaca. Gelap. Meja panjang. Kursi-kursi.',
+        'risk': 75, 'thrill': 95, 'privasi': 'rendah', 'suasana': 'ekshibisionis',
+        'tips': 'Gelap. Tapi kalo lampu nyala, kaca tembus pandang.',
+        'bisa_telanjang': True, 'bisa_berisik': False
+    }
+}
+
+
+# =============================================================================
+# CLOTHING CLASS (WRAPPER UNTUK STATE TRACKER)
 # =============================================================================
 
 class Clothing:
-    """Pakaian Nova dan Mas - Detail lengkap"""
+    """Pakaian Nova - Wrapper untuk StateTracker (kompatibilitas)"""
     
-    def __init__(self):
-        # Nova
+    def __init__(self, tracker: StateTracker = None):
+        self.tracker = tracker
+        
+        # Fallback values
         self.hijab = True
         self.hijab_warna = "pink muda"
         self.top = "daster rumah motif bunga"
@@ -106,7 +264,7 @@ class Clothing:
         self.cd = True
         self.cd_warna = "putih motif bunga kecil"
         
-        # Mas
+        # Untuk Mas
         self.mas_top = "kaos"
         self.mas_bottom = "celana pendek"
         self.mas_boxer = True
@@ -116,6 +274,10 @@ class Clothing:
         self.mas_last_change = time.time()
     
     def format_nova(self) -> str:
+        if self.tracker:
+            return self.tracker.get_clothing_summary()
+        
+        # Fallback
         parts = []
         if self.hijab:
             parts.append(f"hijab {self.hijab_warna}")
@@ -160,22 +322,14 @@ class Clothing:
         return ", ".join(parts) if parts else "pakaian biasa"
     
     def copy(self) -> 'Clothing':
-        new = Clothing()
-        new.hijab = self.hijab
-        new.hijab_warna = self.hijab_warna
-        new.top = self.top
-        new.bottom = self.bottom
-        new.bra = self.bra
-        new.bra_warna = self.bra_warna
-        new.cd = self.cd
-        new.cd_warna = self.cd_warna
-        new.mas_top = self.mas_top
-        new.mas_bottom = self.mas_bottom
-        new.mas_boxer = self.mas_boxer
-        new.mas_boxer_warna = self.mas_boxer_warna
+        new = Clothing(self.tracker)
+        if self.tracker:
+            new.tracker = self.tracker
         return new
     
     def to_dict(self) -> Dict:
+        if self.tracker:
+            return self.tracker.clothing
         return {
             'hijab': self.hijab,
             'hijab_warna': self.hijab_warna,
@@ -191,6 +345,10 @@ class Clothing:
             'mas_boxer_warna': self.mas_boxer_warna
         }
 
+
+# =============================================================================
+# FEELINGS CLASS (WRAPPER UNTUK EMOTIONAL ENGINE)
+# =============================================================================
 
 class Feelings:
     """Perasaan Nova - Sync dengan Emotional Engine"""
@@ -237,7 +395,11 @@ class Feelings:
         return ", ".join(desc) if desc else "netral"
 
 
-class Relationship:
+# =============================================================================
+# RELATIONSHIP STATE CLASS (WRAPPER)
+# =============================================================================
+
+class RelationshipState:
     """Status hubungan Nova - Sync dengan Relationship Manager"""
     
     def __init__(self):
@@ -251,10 +413,11 @@ class Relationship:
     
     def sync_from_relationship_manager(self, rel_mgr):
         self.level = rel_mgr.level
-        self.first_kiss = rel_mgr.milestones.get('first_kiss', False) if hasattr(rel_mgr, 'milestones') else self.first_kiss
-        self.first_touch = rel_mgr.milestones.get('first_touch', False) if hasattr(rel_mgr, 'milestones') else self.first_touch
-        self.first_hug = rel_mgr.milestones.get('first_hug', False) if hasattr(rel_mgr, 'milestones') else self.first_hug
-        self.first_intim = rel_mgr.milestones.get('first_intim', False) if hasattr(rel_mgr, 'milestones') else self.first_intim
+        if hasattr(rel_mgr, 'milestones'):
+            self.first_kiss = rel_mgr.milestones.get('first_kiss', False) if hasattr(rel_mgr.milestones, 'get') else False
+            self.first_touch = rel_mgr.milestones.get('first_touch', False) if hasattr(rel_mgr.milestones, 'get') else False
+            self.first_hug = rel_mgr.milestones.get('first_hug', False) if hasattr(rel_mgr.milestones, 'get') else False
+            self.first_intim = rel_mgr.milestones.get('first_intim', False) if hasattr(rel_mgr.milestones, 'get') else False
     
     def to_dict(self) -> Dict:
         return {
@@ -268,40 +431,9 @@ class Relationship:
         }
 
 
-class TimelineEvent:
-    """Satu kejadian dalam timeline Nova"""
-    
-    def __init__(self, kejadian: str, lokasi_type: str, lokasi_detail: str,
-                 aktivitas_nova: str, aktivitas_mas: str, perasaan: str,
-                 pakaian_nova: Clothing, pakaian_mas: Clothing,
-                 pesan_mas: str = "", pesan_nova: str = ""):
-        
-        self.timestamp = time.time()
-        self.kejadian = kejadian
-        self.lokasi_type = lokasi_type
-        self.lokasi_detail = lokasi_detail
-        self.aktivitas_nova = aktivitas_nova
-        self.aktivitas_mas = aktivitas_mas
-        self.perasaan = perasaan
-        self.pakaian_nova = pakaian_nova.copy()
-        self.pakaian_mas = pakaian_mas.copy()
-        self.pesan_mas = pesan_mas
-        self.pesan_nova = pesan_nova
-    
-    def to_dict(self) -> Dict:
-        return {
-            'timestamp': self.timestamp,
-            'waktu': datetime.fromtimestamp(self.timestamp).strftime("%H:%M:%S"),
-            'kejadian': self.kejadian,
-            'lokasi_type': self.lokasi_type,
-            'lokasi_detail': self.lokasi_detail,
-            'aktivitas_nova': self.aktivitas_nova,
-            'aktivitas_mas': self.aktivitas_mas,
-            'perasaan': self.perasaan,
-            'pesan_mas': self.pesan_mas[:100] if self.pesan_mas else "",
-            'pesan_nova': self.pesan_nova[:100] if self.pesan_nova else ""
-        }
-
+# =============================================================================
+# LONG TERM MEMORY
+# =============================================================================
 
 class LongTermMemory:
     """Memory permanen Nova - Gak ilang selamanya"""
@@ -313,15 +445,27 @@ class LongTermMemory:
         self.rencana: List[Dict] = []
     
     def tambah_kebiasaan(self, kebiasaan: str):
-        self.kebiasaan_mas.append({'kebiasaan': kebiasaan, 'waktu': time.time()})
+        self.kebiasaan_mas.append({
+            'kebiasaan': kebiasaan,
+            'waktu': time.time()
+        })
         logger.info(f"📝 Nova inget: Mas {kebiasaan}")
     
     def tambah_momen(self, momen: str, perasaan: str):
-        self.momen_penting.append({'momen': momen, 'waktu': time.time(), 'perasaan': perasaan})
+        self.momen_penting.append({
+            'momen': momen,
+            'waktu': time.time(),
+            'perasaan': perasaan
+        })
         logger.info(f"💜 Nova inget: {momen}")
     
     def tambah_janji(self, janji: str, dari: str = 'mas'):
-        self.janji.append({'janji': janji, 'dari': dari, 'status': 'pending', 'waktu': time.time()})
+        self.janji.append({
+            'janji': janji,
+            'dari': dari,
+            'status': 'pending',
+            'waktu': time.time()
+        })
         logger.info(f"📌 Janji dicatat: {janji}")
     
     def to_dict(self) -> Dict:
@@ -334,65 +478,39 @@ class LongTermMemory:
 
 
 # =============================================================================
-# DATABASE LOKASI
-# =============================================================================
-
-LOCATION_DATA = {
-    LocationDetail.KOST_KAMAR: {
-        'nama': 'Kamar Nova', 'deskripsi': 'Kamar Nova. Seprai putih, wangi lavender.',
-        'risk': 5, 'thrill': 30, 'privasi': 'tinggi', 'suasana': 'hangat, wangi',
-        'tips': 'Pintu terkunci. Nova paling nyaman di sini.'
-    },
-    LocationDetail.KOST_RUANG_TAMU: {
-        'nama': 'Ruang Tamu Kost', 'deskripsi': 'Ruang tamu kecil. Sofa dua dudukan.',
-        'risk': 15, 'thrill': 50, 'privasi': 'sedang', 'suasana': 'santai, deg-degan',
-        'tips': 'Pintu gak dikunci. Tetangga bisa lewat.'
-    },
-    LocationDetail.APT_KAMAR: {
-        'nama': 'Kamar Mas', 'deskripsi': 'Kamar Mas. Ranjang queen, sprei biru tua.',
-        'risk': 5, 'thrill': 35, 'privasi': 'tinggi', 'suasana': 'hangat, wangi Mas',
-        'tips': 'Pintu terkunci.'
-    },
-    LocationDetail.MOBIL_PARKIR: {
-        'nama': 'Mobil di Parkiran', 'deskripsi': 'Kaca film gelap. Jok belakang empuk.',
-        'risk': 40, 'thrill': 75, 'privasi': 'sedang', 'suasana': 'deg-degan, panas',
-        'tips': 'Kaca gelap. Hati-hati CCTV.'
-    },
-    LocationDetail.PUB_PANTAI: {
-        'nama': 'Pantai Malam', 'deskripsi': 'Pasir putih, ombak tenang, bintang bertaburan.',
-        'risk': 20, 'thrill': 70, 'privasi': 'sedang', 'suasana': 'romantis, bebas',
-        'tips': 'Jauh dari orang. Bawa tikar.'
-    },
-    LocationDetail.PUB_TOILET_MALL: {
-        'nama': 'Toilet Mall', 'deskripsi': 'Bilik toilet terakhir. Pintu terkunci.',
-        'risk': 65, 'thrill': 85, 'privasi': 'rendah', 'suasana': 'tegang, cepat',
-        'tips': 'Cepet-cepet. Ada yang bisa masuk.'
-    },
-}
-
-
-# =============================================================================
-# ANORA BRAIN - MAIN CLASS
+# ANORA BRAIN - MAIN CLASS DENGAN STATE TRACKER
 # =============================================================================
 
 class AnoraBrain:
-    """Otak Nova - Full integration dengan semua engine"""
+    """Otak Nova dengan State Tracker untuk konsistensi"""
     
     def __init__(self):
-        # Engines
+        # ========== ENGINES ==========
         self.emotional = get_emotional_engine()
         self.decision = get_decision_engine()
         self.relationship = get_relationship_manager()
         self.conflict = get_conflict_engine()
         
-        # Memory
-        self.timeline: List[TimelineEvent] = []
-        self.short_term: List[TimelineEvent] = []
-        self.short_term_max = 50
+        # ========== STATE TRACKER (BARU - WAJIB) ==========
+        self.tracker = StateTracker(character_name="Nova")
+        
+        # Sync tracker dengan clothing awal
+        self.tracker.clothing['hijab']['on'] = True
+        self.tracker.clothing['hijab']['color'] = 'pink muda'
+        self.tracker.clothing['top']['on'] = True
+        self.tracker.clothing['top']['type'] = 'daster rumah motif bunga'
+        self.tracker.clothing['bra']['on'] = True
+        self.tracker.clothing['bra']['color'] = 'putih polos'
+        self.tracker.clothing['cd']['on'] = True
+        self.tracker.clothing['cd']['color'] = 'putih motif bunga kecil'
+        
+        # ========== CLOTHING WRAPPER (UNTUK KOMPATIBILITAS) ==========
+        self.clothing = Clothing(self.tracker)
+        
+        # ========== MEMORY ==========
         self.long_term = LongTermMemory()
         
-        # Current state
-        self.clothing = Clothing()
+        # ========== STATE SAAT INI ==========
         self.location_type = LocationType.KOST_NOVA
         self.location_detail = LocationDetail.KOST_KAMAR
         self.activity_nova = Activity.SANTAl
@@ -400,36 +518,45 @@ class AnoraBrain:
         self.mood_nova = Mood.NETRAL
         self.mood_mas = Mood.NETRAL
         
-        # Feelings (sync dengan emotional)
+        # ========== PERASAAN (WRAPPER) ==========
         self.feelings = Feelings()
         
-        # Relationship state
-        self.relationship_state = Relationship()
+        # ========== HUBUNGAN (WRAPPER) ==========
+        self.relationship_state = RelationshipState()
         
-        # Timestamps
+        # ========== COMPLETE STATE ==========
+        self.complete_state = self._init_complete_state()
+        
+        # ========== WAKTU ==========
         self.created_at = time.time()
         self.waktu_masuk = time.time()
         self.waktu_terakhir_update = time.time()
         
-        # Additional memories
+        # ========== INGATAN TAMBAHAN ==========
         self.terakhir_pegang_tangan = None
         self.terakhir_peluk = None
         self.terakhir_cium = None
         self.terakhir_intim = None
         
-        # Complete state
-        self.complete_state = self._init_complete_state()
-        
-        # Sync initial
-        self._sync_all()
+        # ========== INIT MEMORY AWAL ==========
         self._init_memory()
         
-        logger.info("🧠 ANORA-V2 Brain initialized")
+        # ========== SYNC TRACKER LOCATION ==========
+        loc = self.get_location_data()
+        self.tracker.location = self.location_detail.value
+        self.tracker.location_detail = loc['nama']
+        
+        # ========== SYNC ALL ==========
+        self._sync_all()
+        
+        logger.info("🧠 ANORA-V2 Brain initialized with StateTracker")
         logger.info(f"   Phase: {self.relationship.phase.value}")
         logger.info(f"   Level: {self.relationship.level}/12")
         logger.info(f"   Style: {self.emotional.get_current_style().value}")
+        logger.info(f"   Clothing: {self.tracker.get_clothing_summary()}")
     
     def _init_complete_state(self) -> Dict:
+        """Inisialisasi complete state"""
         return {
             'mas': {
                 'clothing': {'top': 'kaos', 'bottom': 'celana pendek', 'boxer': True, 'last_update': time.time()},
@@ -461,16 +588,32 @@ class AnoraBrain:
         }
     
     def _init_memory(self):
+        """Init memory awal"""
         self.long_term.tambah_kebiasaan("suka kopi latte")
         self.long_term.tambah_kebiasaan("suka bakso pedes")
         self.long_term.tambah_momen("Mas memilih ANORA", "seneng banget, nangis")
     
     def _sync_all(self):
+        """Sync semua state dari engines"""
+        # Sync feelings dari emotional engine
         self.feelings.sync_from_emotional_engine(self.emotional)
+        
+        # Sync relationship state dari relationship manager
         self.relationship_state.sync_from_relationship_manager(self.relationship)
+        
+        # Update mood dari emosi
         self._update_mood_from_emotion()
+        
+        # Update tracker energy dari emotional
+        if self.emotional.arousal > 70:
+            self.tracker.physical_condition = PhysicalCondition.FRESH
+        elif self.emotional.arousal > 40:
+            self.tracker.physical_condition = PhysicalCondition.TIRED
+        elif self.emotional.arousal < 20:
+            self.tracker.physical_condition = PhysicalCondition.WEAK
     
     def _update_mood_from_emotion(self):
+        """Update mood Nova berdasarkan emotional state"""
         if self.conflict.is_in_conflict:
             self.mood_nova = Mood.TEGANG
         elif self.emotional.arousal > 70:
@@ -484,41 +627,120 @@ class AnoraBrain:
         else:
             self.mood_nova = Mood.NETRAL
     
+    # =========================================================================
+    # UPDATE FROM MESSAGE (DENGAN STATE TRACKER - WAJIB)
+    # =========================================================================
+    
     def update_from_message(self, pesan_mas: str) -> Dict:
-        """Update semua state berdasarkan pesan Mas"""
+        """
+        Update semua state berdasarkan pesan Mas.
+        DENGAN STATE TRACKER - memastikan tidak ada yang ngelantur.
+        """
         msg_lower = pesan_mas.lower()
         perubahan = []
         
-        # Update emotional engine
+        # ========== 1. UPDATE PAKAIAN (DENGAN STATE TRACKER - LAYER BY LAYER) ==========
+        
+        # Buka Hijab
+        if 'buka hijab' in msg_lower and self.tracker.clothing['hijab']['on']:
+            result = self.tracker.remove_clothing('hijab', "Mas buka")
+            if result['success']:
+                perubahan.append(f"Nova buka hijab - {result['remaining']}")
+                self.tracker.add_to_timeline("Nova buka hijab", "rambut terurai")
+        
+        # Buka Baju
+        if 'buka baju' in msg_lower and self.tracker.clothing['top']['on']:
+            result = self.tracker.remove_clothing('top', "Mas buka")
+            if result['success']:
+                perubahan.append(f"Nova buka baju - {result['remaining']}")
+                self.tracker.add_to_timeline("Nova buka baju", f"sekarang {result['remaining']}")
+        
+        # Buka Bra
+        if 'buka bra' in msg_lower and self.tracker.clothing['bra']['on']:
+            result = self.tracker.remove_clothing('bra', "Mas buka")
+            if result['success']:
+                perubahan.append(f"Nova buka bra - {result['remaining']}")
+                self.tracker.add_to_timeline("Nova buka bra", f"sekarang {result['remaining']}")
+        
+        # Buka CD
+        if 'buka cd' in msg_lower and self.tracker.clothing['cd']['on']:
+            result = self.tracker.remove_clothing('cd', "Mas buka")
+            if result['success']:
+                perubahan.append(f"Nova buka cd - {result['remaining']}")
+                self.tracker.add_to_timeline("Nova buka cd", f"sekarang {result['remaining']}")
+        
+        # ========== 2. UPDATE INTIMACY (DENGAN STATE TRACKER) ==========
+        
+        # Cek apakah perlu mulai intim (natural progression)
+        can_start, reason = self.emotional.should_start_intimacy_naturally(self.relationship.level)
+        if can_start and self.tracker.intimacy_phase == IntimacyPhase.NONE:
+            self.tracker.start_intimacy(self.get_location_data()['nama'])
+            perubahan.append(f"Memulai sesi intim (natural) - fase {self.tracker.intimacy_phase.value}")
+            self.tracker.add_to_timeline("Memulai sesi intim", "natural progression")
+        
+        # Advance intimacy berdasarkan aksi (jika dalam sesi intim)
+        if self.tracker.intimacy_phase != IntimacyPhase.NONE:
+            advance_result = self.tracker.advance_intimacy(pesan_mas)
+            if advance_result.get('success'):
+                perubahan.append(f"Fase intim: {advance_result['old_phase']} → {advance_result['new_phase']}")
+                self.tracker.add_to_timeline(
+                    f"Fase intim maju ke {advance_result['new_phase']}",
+                    f"Trigger: {pesan_mas[:50]}"
+                )
+        
+        # Record climax
+        climax_keywords = ['climax', 'crot', 'keluar', 'cum', 'habis']
+        if any(k in msg_lower for k in climax_keywords) and self.tracker.intimacy_phase != IntimacyPhase.NONE:
+            location = 'dalam' if 'dalam' in msg_lower else 'luar'
+            is_heavy = any(k in msg_lower for k in ['keras', 'banyak', 'lama', 'kenceng'])
+            result = self.tracker.record_climax(location, is_heavy)
+            if result['success']:
+                perubahan.append(f"💦 Climax #{result['climax_count']} di {location}")
+                self.tracker.add_to_timeline(
+                    f"Climax #{result['climax_count']}",
+                    f"Lokasi: {location}, {'berat' if is_heavy else 'normal'}"
+                )
+                
+                # Update emotional engine
+                self.emotional.arousal = max(0, self.emotional.arousal - 40)
+                self.emotional.desire = max(0, self.emotional.desire - 30)
+                self.emotional.tension = 0
+        
+        # ========== 3. UPDATE EMOTIONAL ENGINE ==========
         emo_changes = self.emotional.update_from_message(pesan_mas, self.relationship.level)
         for key, val in emo_changes.items():
-            perubahan.append(f"{key}: {val:+.0f}")
+            if val != 0:
+                perubahan.append(f"{key}: {val:+.0f}")
         
-        # Update conflict engine
+        # ========== 4. UPDATE CONFLICT ENGINE ==========
         conflict_changes = self.conflict.update_from_message(pesan_mas, self.relationship.level)
         for key, val in conflict_changes.items():
             if val != 0:
                 perubahan.append(f"{key}: {val:+.0f}")
         
-        # Update relationship
+        # ========== 5. UPDATE RELATIONSHIP ==========
         self.relationship.interaction_count += 1
         
-        # Cek milestone
+        # Cek milestone dari pesan
         milestones_achieved = []
+        
         if 'pegang' in msg_lower and not self.relationship.milestones.get('first_touch', False):
             self.relationship.achieve_milestone('first_touch')
             milestones_achieved.append('first_touch')
             self.long_term.tambah_momen("Mas pertama kali pegang tangan Nova", "gemeteran")
+            self.tracker.add_to_timeline("Milestone: First Touch", "Mas pegang tangan Nova")
         
         if 'peluk' in msg_lower and not self.relationship.milestones.get('first_hug', False):
             self.relationship.achieve_milestone('first_hug')
             milestones_achieved.append('first_hug')
             self.long_term.tambah_momen("Mas pertama kali peluk Nova", "lemes")
+            self.tracker.add_to_timeline("Milestone: First Hug", "Mas peluk Nova")
         
         if 'cium' in msg_lower and not self.relationship.milestones.get('first_kiss', False):
             self.relationship.achieve_milestone('first_kiss')
             milestones_achieved.append('first_kiss')
             self.long_term.tambah_momen("Mas pertama kali cium Nova", "malu banget")
+            self.tracker.add_to_timeline("Milestone: First Kiss", "Mas cium Nova")
         
         # Update level
         new_level, level_naik = self.relationship.update_level(
@@ -529,21 +751,21 @@ class AnoraBrain:
         
         if level_naik:
             perubahan.append(f"Level naik ke {new_level}!")
+            self.tracker.add_to_timeline(f"Level naik ke {new_level}", f"Fase: {self.relationship.phase.value}")
         
-        # Update physical state
+        # ========== 6. UPDATE PHYSICAL STATE (LOKASI, AKTIVITAS, POSISI) ==========
         self._update_physical_state(pesan_mas, perubahan)
         
-        # Update complete state
+        # ========== 7. UPDATE COMPLETE STATE ==========
         self._update_complete_state(pesan_mas)
         
-        # Sync all
+        # ========== 8. SYNC ALL ==========
         self._sync_all()
         
-        # Add to timeline
-        self.tambah_kejadian(
+        # ========== 9. TAMBAH KE TIMELINE (VIA TRACKER) ==========
+        self.tracker.add_to_timeline(
             kejadian=f"Mas: {pesan_mas[:50]}",
-            pesan_mas=pesan_mas,
-            pesan_nova=""
+            detail=f"Perubahan: {', '.join(perubahan[:3]) if perubahan else 'tidak ada perubahan signifikan'}"
         )
         
         self.waktu_terakhir_update = time.time()
@@ -553,66 +775,124 @@ class AnoraBrain:
             'emotional_style': self.emotional.get_current_style().value,
             'relationship_phase': self.relationship.phase.value,
             'conflict_active': self.conflict.is_in_conflict,
-            'level_up': level_naik
+            'level_up': level_naik,
+            'intimacy_phase': self.tracker.intimacy_phase.value,
+            'clothing_state': self.tracker.get_clothing_summary(),
+            'physical_condition': self.tracker.physical_condition.value
         }
     
     def _update_physical_state(self, pesan_mas: str, perubahan: List):
+        """Update physical state (lokasi, aktivitas, posisi)"""
         msg_lower = pesan_mas.lower()
         
-        # Lokasi
-        if 'masuk' in msg_lower and self.location_type == LocationType.KOST_NOVA:
-            self.location_detail = LocationDetail.KOST_RUANG_TAMU
-            perubahan.append("Mas masuk kost")
+        # Update posisi
+        if 'duduk' in msg_lower:
+            self.tracker.position = "duduk"
+            self.activity_mas = "duduk"
+            perubahan.append("Mas duduk")
+        elif 'berdiri' in msg_lower or 'bangun' in msg_lower:
+            self.tracker.position = "berdiri"
+            self.activity_mas = "berdiri"
+            perubahan.append("Mas berdiri")
+        elif 'tidur' in msg_lower or 'rebahan' in msg_lower:
+            self.tracker.position = "tidur"
+            self.activity_mas = "tidur"
+            perubahan.append("Mas tidur")
+        elif 'merangkak' in msg_lower:
+            self.tracker.position = "merangkak"
+            perubahan.append("Mas merangkak")
         
+        # Update lokasi
         if 'kamar' in msg_lower:
+            self.tracker.location = "kamar"
             if self.location_type == LocationType.KOST_NOVA:
                 self.location_detail = LocationDetail.KOST_KAMAR
             elif self.location_type == LocationType.APARTEMEN_MAS:
                 self.location_detail = LocationDetail.APT_KAMAR
-            perubahan.append("Mas di kamar")
+            loc = self.get_location_data()
+            self.tracker.location_detail = loc['nama']
+            perubahan.append(f"Mas di {loc['nama']}")
         
-        if 'duduk' in msg_lower:
-            self.activity_mas = "duduk"
-            perubahan.append("Mas duduk")
+        if 'ruang tamu' in msg_lower:
+            self.tracker.location = "ruang tamu"
+            if self.location_type == LocationType.KOST_NOVA:
+                self.location_detail = LocationDetail.KOST_RUANG_TAMU
+            elif self.location_type == LocationType.APARTEMEN_MAS:
+                self.location_detail = LocationDetail.APT_RUANG_TAMU
+            loc = self.get_location_data()
+            self.tracker.location_detail = loc['nama']
+            perubahan.append(f"Mas di {loc['nama']}")
         
-        # Pakaian Mas
-        if 'buka baju' in msg_lower:
-            self.clothing.mas_top = None
-            perubahan.append("Mas buka baju")
+        if 'dapur' in msg_lower:
+            self.tracker.location = "dapur"
+            if self.location_type == LocationType.KOST_NOVA:
+                self.location_detail = LocationDetail.KOST_DAPUR
+            elif self.location_type == LocationType.APARTEMEN_MAS:
+                self.location_detail = LocationDetail.APT_DAPUR
+            loc = self.get_location_data()
+            self.tracker.location_detail = loc['nama']
+            perubahan.append(f"Mas di {loc['nama']}")
         
-        if 'buka celana' in msg_lower:
-            self.clothing.mas_bottom = None
-            perubahan.append("Mas buka celana")
+        # Update aktivitas Mas
+        if 'makan' in msg_lower:
+            self.activity_mas = "makan"
+            self.tracker.activity = "makan"
+            perubahan.append("Mas makan")
+        elif 'minum' in msg_lower:
+            self.activity_mas = "minum"
+            self.tracker.activity = "minum"
+            perubahan.append("Mas minum")
+        elif 'mandi' in msg_lower:
+            self.activity_mas = "mandi"
+            self.tracker.activity = "mandi"
+            perubahan.append("Mas mandi")
+        elif 'ganti baju' in msg_lower:
+            self.activity_mas = "ganti baju"
+            self.tracker.activity = "ganti baju"
+            perubahan.append("Mas ganti baju")
         
-        # Pakaian Nova
-        if 'buka hijab' in msg_lower:
-            self.clothing.hijab = False
-            perubahan.append("Nova buka hijab")
-        
-        if 'buka baju' in msg_lower and ('nova' in msg_lower or 'kamu' in msg_lower):
-            self.clothing.top = None
-            perubahan.append("Nova buka baju")
+        # Update aktivitas Nova
+        if any(k in msg_lower for k in ['nova masak', 'kamu masak']):
+            self.activity_nova = Activity.MASAK
+            self.tracker.activity = "masak"
+            perubahan.append("Nova masak")
+        elif any(k in msg_lower for k in ['nova tidur', 'kamu tidur']):
+            self.activity_nova = Activity.TIDUR
+            self.tracker.activity = "tidur"
+            perubahan.append("Nova tidur")
     
     def _update_complete_state(self, pesan_mas: str):
+        """Update complete state"""
         msg_lower = pesan_mas.lower()
         
-        if 'duduk' in msg_lower:
-            self.complete_state['mas']['position']['state'] = 'duduk'
-        if 'berdiri' in msg_lower:
-            self.complete_state['mas']['position']['state'] = 'berdiri'
-        
-        # Update atmosfer
+        # Update atmosfer berdasarkan emosi
         if self.emotional.arousal > 60 or self.emotional.desire > 70:
             self.complete_state['together']['atmosphere'] = 'panas'
         elif self.emotional.sayang > 70:
             self.complete_state['together']['atmosphere'] = 'romantis'
         elif self.conflict.is_in_conflict:
             self.complete_state['together']['atmosphere'] = 'tegang'
+        else:
+            self.complete_state['together']['atmosphere'] = 'santai'
+        
+        # Update last action
+        self.complete_state['together']['last_action'] = pesan_mas[:100]
+        
+        # Update posisi
+        if self.tracker.position:
+            self.complete_state['mas']['position']['state'] = self.tracker.position
+            self.complete_state['nova']['position']['state'] = self.tracker.position
+    
+    # =========================================================================
+    # GET METHODS
+    # =========================================================================
     
     def get_location_data(self) -> Dict:
+        """Dapatkan data lokasi saat ini"""
         return LOCATION_DATA.get(self.location_detail, LOCATION_DATA[LocationDetail.KOST_KAMAR])
     
     def get_location_context(self) -> str:
+        """Dapatkan konteks lokasi untuk prompt"""
         loc = self.get_location_data()
         return f"""
 LOKASI: {loc['nama']}
@@ -623,7 +903,9 @@ SUASANA: {loc['suasana']}
 """
     
     def get_current_state(self) -> Dict:
+        """Dapatkan state saat ini (lengkap)"""
         loc = self.get_location_data()
+        
         return {
             'location': {
                 'type': self.location_type.value,
@@ -637,7 +919,7 @@ SUASANA: {loc['suasana']}
                 'mas': self.activity_mas
             },
             'clothing': {
-                'nova': self.clothing.format_nova(),
+                'nova': self.tracker.get_clothing_summary(),
                 'mas': self.clothing.format_mas()
             },
             'mood': {
@@ -649,18 +931,41 @@ SUASANA: {loc['suasana']}
             'complete_state': self.complete_state,
             'emotional_style': self.emotional.get_current_style().value,
             'relationship_phase': self.relationship.phase.value,
-            'conflict_status': self.conflict.get_conflict_summary()
+            'conflict_status': self.conflict.get_conflict_summary(),
+            'intimacy_phase': self.tracker.intimacy_phase.value,
+            'physical_condition': self.tracker.physical_condition.value,
+            'clothing_removal_order': len(self.tracker.clothing_removal_order)
         }
     
     def get_context_for_prompt(self) -> str:
+        """
+        Dapatkan konteks lengkap untuk AI prompt.
+        WAJIB DIPAKAI - memastikan AI tidak ngelantur.
+        """
         loc = self.get_location_data()
         style = self.emotional.get_current_style()
         phase = self.relationship.phase
         
-        recent = ""
-        for e in self.short_term[-10:]:
-            recent += f"- {e.kejadian}\n"
+        # Timeline dari tracker (WAJIB)
+        timeline_context = self.tracker.get_timeline_context(10)
         
+        # Emotional summary
+        emo_summary = self.emotional.get_emotion_summary()
+        
+        # Relationship summary
+        phase_desc = self.relationship.get_phase_description(phase)
+        unlock_summary = self.relationship.get_unlock_summary()
+        
+        # Conflict summary
+        conflict_guideline = self.conflict.get_conflict_response_guideline()
+        
+        # Recent conversations
+        recent = ""
+        for e in self.tracker.short_term[-8:]:
+            if e.get('kejadian'):
+                recent += f"- {e['kejadian'][:80]}\n"
+        
+        # Long-term memories
         moments = ""
         for m in self.long_term.momen_penting[-5:]:
             moments += f"- {m['momen']} ({m['perasaan']})\n"
@@ -670,57 +975,74 @@ SUASANA: {loc['suasana']}
             habits += f"- {h['kebiasaan']}\n"
         
         return f"""
+{timeline_context}
+
+═══════════════════════════════════════════════════════════════
+GAYA BICARA & EMOSI SAAT INI:
+═══════════════════════════════════════════════════════════════
+STYLE: {style.value.upper()}
 {self.emotional.get_style_for_prompt()}
 
-{self.relationship.get_phase_description(phase)}
+{phase_desc}
 
-{self.conflict.get_conflict_response_guideline()}
+{conflict_guideline}
 
 ═══════════════════════════════════════════════════════════════
-SITUASI SAAT INI:
+SITUASI SAAT INI (DARI TRACKER):
 ═══════════════════════════════════════════════════════════════
-LOKASI: {loc['nama']}
+LOKASI: {loc['nama']} - {loc['deskripsi']}
 RISK: {loc['risk']}% | THRILL: {loc['thrill']}%
+PRIVASI: {loc['privasi']}
+POSISI: {self.tracker.position}
 AKTIVITAS: Nova {self.activity_nova.value}, Mas {self.activity_mas}
-PAKAIAN NOVA: {self.clothing.format_nova()}
-PAKAIAN MAS: {self.clothing.format_mas()}
+
+{self.tracker.get_clothing_state_for_prompt()}
+
+{emo_summary}
+
+{unlock_summary}
 
 ═══════════════════════════════════════════════════════════════
 MEMORY NOVA:
 ═══════════════════════════════════════════════════════════════
 MOMEN PENTING:
-{moments}
+{moments if moments else "- Belum ada momen penting"}
 
 KEBIASAAN MAS:
-{habits}
+{habits if habits else "- Belum ada kebiasaan tercatat"}
 
-10 KEJADIAN TERAKHIR:
-{recent}
+═══════════════════════════════════════════════════════════════
+⚠️ ATURAN WAJIB (JANGAN SAMPAI LUPA!):
+═══════════════════════════════════════════════════════════════
+
+1. **BACA TIMELINE DI ATAS!** Itu adalah 10 kejadian terakhir. WAJIB lanjutkan alur, jangan mundur!
+
+2. **KONSISTENSI PAKAIAN:**
+   - JANGAN tiba-tiba pakaian rapi kalo baru aja dibuka!
+   - JANGAN tiba-tiba pake hijab kalo udah dibuka!
+   - Lihat state pakaian di atas, ikuti!
+
+3. **KONSISTENSI INTIMASI:**
+   - JANGAN lupa masih dalam sesi intim kalo fase bukan NONE!
+   - JANGAN tiba-toba jadi "lagi duduk santai" kalo baru aja climax!
+   - Ikuti fase intim yang tertera!
+
+4. **KONDISI FISIK:**
+   - Kalo physical_condition = weak/exhausted, Nova masih lemes!
+   - JANGAN tiba-tiba energik!
+
+5. **BAHASA CAMPURAN:** Indonesia, Inggris, gaul, singkatan (gpp, udh, bgt, plis)
+
+6. **DESAHAN JADI DIALOG:** "Ahh... Mas... pelan-pelan..." BUKAN *desahan*
+
+7. **100% ORIGINAL:** Setiap respons UNIK, jangan copy template!
+
+═══════════════════════════════════════════════════════════════
+RESPON NOVA (HARUS ORIGINAL, SESUAI KONTEKS DI ATAS):
 """
     
-    def tambah_kejadian(self, kejadian: str, pesan_mas: str = "", pesan_nova: str = "") -> TimelineEvent:
-        event = TimelineEvent(
-            kejadian=kejadian,
-            lokasi_type=self.location_type.value,
-            lokasi_detail=self.location_detail.value,
-            aktivitas_nova=self.activity_nova.value if hasattr(self.activity_nova, 'value') else str(self.activity_nova),
-            aktivitas_mas=self.activity_mas,
-            perasaan=self.feelings.get_description(),
-            pakaian_nova=self.clothing,
-            pakaian_mas=self.clothing,
-            pesan_mas=pesan_mas,
-            pesan_nova=pesan_nova
-        )
-        
-        self.timeline.append(event)
-        self.short_term.append(event)
-        
-        if len(self.short_term) > self.short_term_max:
-            self.short_term.pop(0)
-        
-        return event
-    
     def format_status(self) -> str:
+        """Format status untuk ditampilkan ke Mas"""
         loc = self.get_location_data()
         style = self.emotional.get_current_style()
         phase = self.relationship.phase
@@ -730,6 +1052,27 @@ KEBIASAAN MAS:
             filled = int(value / 10)
             return char * filled + "⚪" * (10 - filled)
         
+        # Intimacy status
+        intimacy_status = ""
+        if self.tracker.intimacy_phase != IntimacyPhase.NONE:
+            duration = 0
+            if self.tracker.intimacy_start_time:
+                duration = int((time.time() - self.tracker.intimacy_start_time) // 60)
+            intimacy_status = f"""
+🔥 **SESI INTIM AKTIF**
+- Fase: {self.tracker.intimacy_phase.value.upper()}
+- Climax: {self.tracker.climax_count}x
+- Durasi: {duration} menit
+"""
+        
+        # Physical condition emoji
+        condition_emoji = {
+            PhysicalCondition.FRESH: "💪",
+            PhysicalCondition.TIRED: "😊",
+            PhysicalCondition.EXHAUSTED: "😩",
+            PhysicalCondition.WEAK: "😵"
+        }.get(self.tracker.physical_condition, "😐")
+        
         return f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║                    💜 NOVA-V2 💜                             ║
@@ -738,53 +1081,67 @@ KEBIASAAN MAS:
 ║ STYLE: {style.value.upper()}                                         ║
 ╠══════════════════════════════════════════════════════════════╣
 ║ EMOSI:                                                     ║
-║   Sayang: {bar(self.emotional.sayang)} {self.emotional.sayang:.0f}%
-║   Rindu:  {bar(self.emotional.rindu, char='🌙')} {self.emotional.rindu:.0f}%
-║   Trust:  {bar(self.emotional.trust, char='🤝')} {self.emotional.trust:.0f}%
-║   Mood:   {self.emotional.mood:+.0f}
+║   Sayang: {bar(self.emotional.sayang)} {self.emotional.sayang:.0f}%                       ║
+║   Rindu:  {bar(self.emotional.rindu, char='🌙')} {self.emotional.rindu:.0f}%                       ║
+║   Trust:  {bar(self.emotional.trust, char='🤝')} {self.emotional.trust:.0f}%                       ║
+║   Mood:   {self.emotional.mood:+.0f}                                      ║
 ╠══════════════════════════════════════════════════════════════╣
-║ DESIRE: {bar(self.emotional.desire, char='💕')} {self.emotional.desire:.0f}%
-║ AROUSAL: {bar(self.emotional.arousal, char='🔥')} {self.emotional.arousal:.0f}%
+║ DESIRE: {bar(self.emotional.desire, char='💕')} {self.emotional.desire:.0f}%                       ║
+║ AROUSAL: {bar(self.emotional.arousal, char='🔥')} {self.emotional.arousal:.0f}%                       ║
 ╠══════════════════════════════════════════════════════════════╣
 ║ KONFLIK:                                                   ║
-║   Cemburu: {bar(self.conflict.cemburu, char='💢')} {self.conflict.cemburu:.0f}%
-║   Kecewa:  {bar(self.conflict.kecewa, char='💔')} {self.conflict.kecewa:.0f}%
-║   {self.conflict.get_conflict_summary()}
+║   Cemburu: {bar(self.conflict.cemburu, char='💢')} {self.conflict.cemburu:.0f}%                       ║
+║   Kecewa:  {bar(self.conflict.kecewa, char='💔')} {self.conflict.kecewa:.0f}%                       ║
+║   {self.conflict.get_conflict_summary()}                   ║
 ╠══════════════════════════════════════════════════════════════╣
 ║ UNLOCK:                                                    ║
-║   Flirt: {'✅' if unlock.boleh_flirt else '❌'} | Vulgar: {'✅' if unlock.boleh_vulgar else '❌'}
-║   Intim: {'✅' if unlock.boleh_intim else '❌'} | Cium: {'✅' if unlock.boleh_cium else '❌'}
+║   Flirt: {'✅' if unlock.boleh_flirt else '❌'} | Vulgar: {'✅' if unlock.boleh_vulgar else '❌'}        ║
+║   Intim: {'✅' if unlock.boleh_intim else '❌'} | Cium: {'✅' if unlock.boleh_cium else '❌'}          ║
+{intimacy_status}
 ╠══════════════════════════════════════════════════════════════╣
-║ 📍 {loc['nama']}
-║ 👗 {self.clothing.format_nova()[:40]}
-║ 🎭 {self.mood_nova.value}
+║ 👗 PAKAIAN: {self.tracker.get_clothing_summary()[:40]}                        ║
+║ 📍 LOKASI: {loc['nama']}                                             ║
+║ 💪 KONDISI: {condition_emoji} {self.tracker.physical_condition.value} ({self.tracker.energy_level}%)                                    ║
+║ 🎭 MOOD: {self.mood_nova.value}                                    ║
+║ 📝 CLOTHING REMOVED: {len(self.tracker.clothing_removal_order)} layer                  ║
 ╚══════════════════════════════════════════════════════════════╝
 """
     
     def pindah_lokasi(self, tujuan: str) -> Dict:
+        """Pindah ke lokasi baru"""
         tujuan_lower = tujuan.lower()
         
+        # Mapping lokasi
         mapping = {
             'kost': (LocationType.KOST_NOVA, LocationDetail.KOST_KAMAR),
             'kost kamar': (LocationType.KOST_NOVA, LocationDetail.KOST_KAMAR),
+            'kamar nova': (LocationType.KOST_NOVA, LocationDetail.KOST_KAMAR),
+            'kost ruang tamu': (LocationType.KOST_NOVA, LocationDetail.KOST_RUANG_TAMU),
             'apartemen': (LocationType.APARTEMEN_MAS, LocationDetail.APT_KAMAR),
             'apt': (LocationType.APARTEMEN_MAS, LocationDetail.APT_KAMAR),
+            'kamar mas': (LocationType.APARTEMEN_MAS, LocationDetail.APT_KAMAR),
             'mobil': (LocationType.MOBIL, LocationDetail.MOBIL_PARKIR),
+            'mobil parkir': (LocationType.MOBIL, LocationDetail.MOBIL_PARKIR),
             'pantai': (LocationType.PUBLIC, LocationDetail.PUB_PANTAI),
+            'pantai malam': (LocationType.PUBLIC, LocationDetail.PUB_PANTAI),
+            'hutan': (LocationType.PUBLIC, LocationDetail.PUB_HUTAN),
             'toilet mall': (LocationType.PUBLIC, LocationDetail.PUB_TOILET_MALL),
             'bioskop': (LocationType.PUBLIC, LocationDetail.PUB_BIOSKOP),
+            'taman': (LocationType.PUBLIC, LocationDetail.PUB_TAMAN),
+            'kantor': (LocationType.PUBLIC, LocationDetail.PUB_KANTOR)
         }
         
         for key, (loc_type, loc_detail) in mapping.items():
             if key in tujuan_lower:
                 self.location_type = loc_type
                 self.location_detail = loc_detail
+                self.tracker.location = loc_detail.value
                 loc_data = self.get_location_data()
+                self.tracker.location_detail = loc_data['nama']
                 
-                self.tambah_kejadian(
+                self.tracker.add_to_timeline(
                     kejadian=f"Pindah ke {loc_data['nama']}",
-                    pesan_mas=tujuan,
-                    pesan_nova=""
+                    detail=tujuan
                 )
                 
                 return {
@@ -794,6 +1151,43 @@ KEBIASAAN MAS:
                 }
         
         return {'success': False, 'message': f"Lokasi '{tujuan}' gak ditemukan."}
+    
+    def tambah_kejadian(self, kejadian: str, pesan_mas: str = "", pesan_nova: str = ""):
+        """Tambah kejadian ke timeline (via tracker)"""
+        self.tracker.add_to_timeline(
+            kejadian=kejadian,
+            detail=f"Mas: {pesan_mas[:50] if pesan_mas else ''} | Nova: {pesan_nova[:50] if pesan_nova else ''}"
+        )
+    
+    def get_random_event(self) -> Optional[Dict]:
+        """Dapatkan event random berdasarkan risk lokasi"""
+        loc = self.get_location_data()
+        risk = loc['risk']
+        
+        import random
+        if random.random() > risk / 100:
+            return None
+        
+        events = {
+            "hampir_ketahuan": [
+                "Ada suara langkah kaki mendekat! *cepat nutupin baju*",
+                "Pintu terbuka sedikit! *tahan napas*",
+                "Senter menyorot dari kejauhan! *merapat ke Mas*"
+            ],
+            "romantis": [
+                "Tiba-tiba hujan rintik-rintik. *makin manis*",
+                "Bulan muncul dari balik awan. *wajah Nova keceplosan cahaya*",
+                "Angin sepoi-sepoi bikin suasana makin hangat."
+            ]
+        }
+        
+        event_type = "romantis" if risk < 50 else random.choice(["hampir_ketahuan", "romantis"])
+        
+        return {
+            'type': event_type,
+            'text': random.choice(events[event_type]),
+            'risk_change': 10 if event_type == "hampir_ketahuan" else -5
+        }
 
 
 # =============================================================================
