@@ -465,6 +465,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"📨 Message from {user_id}: {pesan[:50]}")
     
     mode = get_user_mode(user_id)
+
+    # 🔥 TAMBAHKAN INI 🔥
+    logger.info(f"📨 Message: mode={mode}, text={pesan[:50]}")
     
     if mode == 'paused':
         await update.message.reply_text(
