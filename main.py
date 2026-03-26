@@ -510,15 +510,26 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def webhook_handler(request):
     """Handle Telegram webhook"""
     global _application
+    
+    # Handle GET request (browser access)
+    if request.method == 'GET':
+        return web.Response(
+            text="This endpoint is for Telegram webhook. Use POST method.",
+            status=405
+        )
+    
     if not _application:
         return web.Response(status=503, text='Bot not ready')
+    
     try:
         update_data = await request.json()
         if not update_data:
             return web.Response(status=400, text='No data')
+        
         update = Update.de_json(update_data, _application.bot)
         await _application.process_update(update)
         return web.Response(text='OK', status=200)
+        
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         return web.Response(status=500, text='Error')
