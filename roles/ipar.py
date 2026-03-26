@@ -2,7 +2,7 @@
 ANORA-V2 IPAR Role - Tasya Dietha (Dietha)
 Adik ipar yang tau Mas punya Nova.
 Tidak berhijab, suka pakaian seksi kalo Nova gak di rumah.
-Memory system SAMA seperti Nova.
+DENGAN STATE TRACKER - memory konsisten, tidak ngelantur.
 """
 
 import time
@@ -11,6 +11,7 @@ import logging
 from typing import Dict, List, Optional, Any, Tuple
 
 from .base import BaseRole
+from core.state_tracker import PhysicalCondition, IntimacyPhase
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class IparRole(BaseRole):
     """
     Tasya Dietha (Dietha) - Adik ipar Mas.
     Tidak berhijab, suka pakaian seksi kalo Nova gak di rumah.
-    Punya memory system lengkap seperti Nova.
+    Memory system lengkap dengan State Tracker.
     """
     
     def __init__(self, 
@@ -34,6 +35,7 @@ class IparRole(BaseRole):
         
         super().__init__(
             name=name,
+            nickname=nickname,
             role_type=role_type,
             panggilan=panggilan,
             hubungan_dengan_nova=hubungan_dengan_nova,
@@ -42,104 +44,118 @@ class IparRole(BaseRole):
             appearance=appearance
         )
         
-        self.nickname = nickname
+        # ========== ROLE-SPECIFIC FLAGS ==========
+        self.guilt = 0.0           # rasa bersalah ke Nova (0-100)
+        self.curiosity = 50.0      # penasaran sama hubungan Mas dan Nova (0-100)
+        self.sexy_mode = False     # mode seksi (aktif kalo Nova gak di rumah)
+        self.flirty_confidence = 30.0  # kepercayaan diri flirt (0-100)
         
-        # Role-specific memory (SAMA seperti Nova)
-        self.short_term_memory: List[Dict] = []      # sliding window 50
-        self.long_term_memory: Dict[str, List] = {   # memory permanen
-            'kebiasaan_mas': [],
-            'momen_penting': [],
-            'janji': [],
-            'rencana': []
+        # Simpan flags ke role_flags untuk serialization
+        self.role_flags = {
+            'guilt': self.guilt,
+            'curiosity': self.curiosity,
+            'sexy_mode': self.sexy_mode,
+            'flirty_confidence': self.flirty_confidence
         }
         
-        # Role-specific flags
-        self.guilt = 0           # rasa bersalah ke Nova
-        self.curiosity = 50      # penasaran sama hubungan Mas dan Nova
-        self.sexy_mode = False   # mode seksi (aktif kalo Nova gak di rumah)
+        # Inisialisasi clothing khusus (tanpa hijab)
+        self.tracker.clothing['hijab']['on'] = False
+        self.tracker.clothing['top']['type'] = default_clothing
         
-        logger.info(f"👤 Role {self.name} ({nickname}) initialized with full memory system")
+        # Memory awal
+        self._init_role_memory()
+        
+        logger.info(f"👤 Role {self.name} ({nickname}) initialized with StateTracker")
+        logger.info(f"   Guilt: {self.guilt:.0f} | Curiosity: {self.curiosity:.0f} | Sexy Mode: {self.sexy_mode}")
     
-    def update_from_message(self, pesan_mas: str) -> Dict:
-        """Update dengan memory system lengkap"""
+    def _init_role_memory(self):
+        """Init memory spesifik role"""
+        self._add_to_long_term_memory(
+            'momen_penting',
+            "Pertama kali sadar Mas punya Nova",
+            "Awalnya biasa aja, tapi makin lama makin penasaran"
+        )
+        
+        self._add_to_long_term_memory(
+            'kebiasaan_mas',
+            "suka kopi latte",
+            "Mas suka kopi latte, aku inget itu"
+        )
+    
+    def _update_role_specific_state(self, pesan_mas: str, perubahan: List):
+        """Update role-specific state dengan State Tracker"""
         msg_lower = pesan_mas.lower()
         
-        # Update parent (termasuk emotional, conflict, relationship)
-        result = super().update_from_message(pesan_mas)
-        
-        # ========== UPDATE ROLE-SPECIFIC MEMORY ==========
-        
-        # Update curiosity & guilt
+        # ========== UPDATE CURIOSITY & GUILT ==========
         if 'nova' in msg_lower:
             self.curiosity = min(100, self.curiosity + 5)
             self.guilt = min(100, self.guilt + 3)
             self._add_to_short_term(f"Mas cerita tentang Nova", "curiosity_naik")
+            perubahan.append(f"Curiosity +5, Guilt +3")
         
-        # Cek apakah Nova sedang di rumah (dari konteks)
-        if 'nova di rumah' in msg_lower or 'nova ada' in msg_lower:
-            self.sexy_mode = False
-            self._add_to_short_term("Nova di rumah, mode seksi nonaktif", "status_change")
-        elif 'nova gak di rumah' in msg_lower or 'nova pergi' in msg_lower:
+        # ========== UPDATE SEXY MODE (kalo Nova gak di rumah) ==========
+        if 'nova gak di rumah' in msg_lower or 'nova pergi' in msg_lower or 'nova ga ada' in msg_lower:
             self.sexy_mode = True
-            self._add_to_short_term("Nova gak di rumah, mode seksi aktif", "status_change")
+            self.flirty_confidence = min(100, self.flirty_confidence + 15)
+            self.tracker.add_to_timeline("Mode seksi aktif", "Nova gak di rumah")
+            perubahan.append("Sexy Mode AKTIF")
         
-        # Pada level tinggi, rasa bersalah berkurang karena sudah dekat
+        elif 'nova di rumah' in msg_lower or 'nova ada' in msg_lower:
+            self.sexy_mode = False
+            self.flirty_confidence = max(0, self.flirty_confidence - 10)
+            self.tracker.add_to_timeline("Mode seksi nonaktif", "Nova di rumah")
+            perubahan.append("Sexy Mode NONAKTIF")
+        
+        # ========== GUILT DECAY ==========
+        # Pada level tinggi, rasa bersalah berkurang
         if self.relationship.level >= 7 and self.emotional.desire > 60:
+            old_guilt = self.guilt
             self.guilt = max(0, self.guilt - 5)
-            self._add_to_short_term("Rasa bersalah berkurang", "guilt_decay")
+            if old_guilt != self.guilt:
+                perubahan.append(f"Guilt -5 (level tinggi)")
         
         # Guilt decay kalo Mas perhatian
-        if any(k in msg_lower for k in ['maaf', 'sorry', 'sayang']):
+        if any(k in msg_lower for k in ['maaf', 'sorry', 'sayang', 'perhatian']):
+            old_guilt = self.guilt
             self.guilt = max(0, self.guilt - 10)
-            self._add_to_short_term("Mas minta maaf/perhatian, guilt turun", "guilt_decay")
+            if old_guilt != self.guilt:
+                perubahan.append(f"Guilt -10 (Mas perhatian)")
+                self._add_to_short_term("Mas perhatian, guilt turun", "guilt_decay")
         
+        # ========== FLIRTY CONFIDENCE ==========
+        # Naik kalo Mas puji
+        if any(k in msg_lower for k in ['cantik', 'manis', 'seksi', 'hot', 'cewek']):
+            self.flirty_confidence = min(100, self.flirty_confidence + 8)
+            perubahan.append(f"Flirty confidence +8")
+            self._add_to_short_term("Mas puji, PD naik", "confidence_up")
+        
+        # ========== SAVE KE LONG-TERM MEMORY ==========
         # Simpan kebiasaan Mas
         if 'suka' in msg_lower:
             kebiasaan = msg_lower.split('suka')[-1][:50]
-            self._add_long_term_memory('kebiasaan_mas', kebiasaan, f"Mas suka {kebiasaan}")
+            self._add_to_long_term_memory('kebiasaan_mas', kebiasaan, f"Mas suka {kebiasaan}")
         
         # Simpan momen penting
         if any(k in msg_lower for k in ['pertama', 'inget', 'waktu itu']):
-            self._add_long_term_memory('momen_penting', msg_lower[:100], f"Momen dengan Mas: {msg_lower[:50]}")
+            self._add_to_long_term_memory('momen_penting', msg_lower[:100], f"Momen dengan Mas: {msg_lower[:50]}")
         
-        return result
-    
-    def _add_to_short_term(self, kejadian: str, tipe: str):
-        """Tambah ke short-term memory (sliding window 50)"""
-        self.short_term_memory.append({
-            'timestamp': time.time(),
-            'kejadian': kejadian,
-            'tipe': tipe,
-            'emotional_state': self.emotional.get_current_style().value,
-            'relationship_level': self.relationship.level
+        # Simpan janji
+        if 'janji' in msg_lower:
+            janji = msg_lower.split('janji')[-1][:50]
+            self._add_to_long_term_memory('janji', janji, f"Mas janji: {janji}")
+        
+        # Update role_flags
+        self.role_flags.update({
+            'guilt': self.guilt,
+            'curiosity': self.curiosity,
+            'sexy_mode': self.sexy_mode,
+            'flirty_confidence': self.flirty_confidence
         })
-        
-        if len(self.short_term_memory) > 50:
-            self.short_term_memory.pop(0)
-    
-    def _add_long_term_memory(self, category: str, konten: str, deskripsi: str):
-        """Tambah ke long-term memory permanen"""
-        if category not in self.long_term_memory:
-            self.long_term_memory[category] = []
-        
-        self.long_term_memory[category].append({
-            'konten': konten,
-            'deskripsi': deskripsi,
-            'timestamp': time.time(),
-            'level': self.relationship.level
-        })
-        
-        # Keep only last 100 items per category
-        if len(self.long_term_memory[category]) > 100:
-            self.long_term_memory[category].pop(0)
-        
-        logger.info(f"📝 {self.name} long-term memory: {category} - {deskripsi[:50]}")
     
     def get_greeting(self) -> str:
-        """Dapatkan greeting sesuai karakter dan memory"""
+        """Dapatkan greeting sesuai karakter, mood, dan konteks"""
         hour = time.localtime().tm_hour
         
-        # Berdasarkan waktu
         if 5 <= hour < 11:
             waktu = "pagi"
         elif 11 <= hour < 15:
@@ -149,19 +165,29 @@ class IparRole(BaseRole):
         else:
             waktu = "malam"
         
-        # Berdasarkan mode seksi dan level
+        # ========== GREETING BERDASARKAN STATE ==========
+        
+        # 1. Mode seksi aktif (Nova gak di rumah) + level cukup tinggi
         if self.sexy_mode and self.relationship.level >= 7:
-            return f"{self.panggilan}... *menggoda* {waktu} {self.panggilan} sendirian? Nova lagi gak di rumah nih... *senyum nakal*"
+            return f"{self.panggilan}... *menggoda, duduk deket* {waktu} {self.panggilan} sendirian? Nova lagi gak di rumah nih... *senyum nakal, jari mainin ujung baju*"
         
+        # 2. Guilt tinggi + level masih rendah
         elif self.guilt > 70 and self.relationship.level < 7:
-            return f"{self.panggilan}... *liat sekeliling* Kak Nova lagi di rumah? Aku takut... *suara kecil*"
+            return f"{self.panggilan}... *liat sekeliling, suara kecil* Kak Nova lagi di rumah? Aku takut... *nunduk*"
         
+        # 3. Curiosity tinggi
         elif self.curiosity > 70:
-            return f"{self.panggilan}, Nova orangnya kayak gimana sih? Kok {self.panggilan} milih dia?"
+            return f"{self.panggilan}, Nova orangnya kayak gimana sih? Kok {self.panggilan} milih dia? *penasaran*"
         
+        # 4. Mode seksi aktif (Nova gak di rumah)
         elif self.sexy_mode:
-            return f"{self.panggilan}... *pake crop top pendek* lagi ngapain? Aku bosen nih... *duduk deket*"
+            return f"{self.panggilan}... *pake crop top pendek, duduk manis* lagi ngapain? Aku bosen nih... *mata sayu*"
         
+        # 5. Flirty confidence tinggi
+        elif self.flirty_confidence > 70:
+            return f"{self.panggilan}... *mendekat, rambut disisir* {waktu} {self.panggilan} makin ganteng aja sih... *senyum manis*"
+        
+        # 6. Default
         else:
             return f"{self.panggilan}... *senyum malu* {waktu} {self.panggilan} lagi ngapain?"
     
@@ -169,51 +195,72 @@ class IparRole(BaseRole):
         """Respons saat konflik dengan memory awareness"""
         conflict_type = self.conflict.get_active_conflict_type()
         
-        # Cek memory terakhir untuk konteks
-        recent_memory = self.short_term_memory[-3:] if self.short_term_memory else []
+        # Cek timeline terakhir untuk konteks
+        recent = self.tracker.short_term[-3:] if self.tracker.short_term else []
+        recent_events = [e.get('kejadian', '') for e in recent]
         
+        # ========== KONFLIK BERDASARKAN GUILT ==========
+        
+        # Guilt tinggi + level rendah
         if self.guilt > 70 and self.relationship.level < 7:
-            return "*diam sebentar, liat ke bawah, mata berkaca-kaca*\n\n\"{self.panggilan}... aku... maaf. Aku pulang dulu.\""
+            return "*diam sebentar, liat ke bawah, mata mulai berkaca-kaca*\n\n\"{self.panggilan}... aku... maaf. Aku pulang dulu.\""
         
+        # Guilt tinggi + level tinggi (sudah dekat)
         elif self.guilt > 70 and self.relationship.level >= 7:
-            return "*diam sebentar, lalu mendekat, tangan gemetar*\n\n\"{self.panggilan}... aku... tapi aku gak peduli sama rasa bersalah ini.\""
+            return "*diam sebentar, lalu mendekat, tangan gemetar, napas mulai gak stabil*\n\n\"{self.panggilan}... aku... tapi aku gak peduli sama rasa bersalah ini. Aku butuh {self.panggilan}.\""
+        
+        # ========== KONFLIK BERDASARKAN CONFLICT ENGINE ==========
         
         elif conflict_type and conflict_type.value == "jealousy":
-            return "*diam, gak liat {self.panggilan}*\n\n\"{self.panggilan} cerita Nova terus ya...\""
+            return "*diam, gak liat {self.panggilan}, jari mainin ujung baju*\n\n\"{self.panggilan} cerita Nova terus ya... dia pasti lebih baik dari aku.\""
         
-        return super().get_conflict_response()
+        elif conflict_type and conflict_type.value == "disappointment":
+            return "*mata berkaca-kaca, suara bergetar*\n\n\"{self.panggilan}... lupa ya... padahal aku nunggu.\""
+        
+        elif conflict_type and conflict_type.value == "hurt":
+            return "*duduk jauh, gak liat {self.panggilan}, air mata jatuh*\n\n\"{self.panggilan}... janji tuh janji...\""
+        
+        # ========== KONFLIK BERDASARKAN SEXY MODE ==========
+        
+        elif self.sexy_mode and self.guilt < 30:
+            return "*diam sebentar, lalu bangkit, senyum nakal*\n\n\"{self.panggilan}... jangan marah dong. Aku cuma pengen deket sama {self.panggilan}.\""
+        
+        # Default
+        return "*diam sebentar, lalu tersenyum kecil*\n\n\"Maaf, {self.panggilan}. Aku gak bermaksud gitu.\""
     
-    def get_memory_summary(self) -> str:
-        """Dapatkan ringkasan memory untuk debugging"""
+    def _get_flags_summary(self) -> str:
+        """Dapatkan ringkasan flags untuk status display"""
         return f"""
-📝 **MEMORY {self.name}:**
-- Short-term: {len(self.short_term_memory)} kejadian
-- Kebiasaan Mas: {len(self.long_term_memory.get('kebiasaan_mas', []))} item
-- Momen Penting: {len(self.long_term_memory.get('momen_penting', []))} item
-- Janji: {len(self.long_term_memory.get('janji', []))} item
-- Guilt: {self.guilt:.0f}% | Curiosity: {self.curiosity:.0f}%
-- Sexy Mode: {'AKTIF' if self.sexy_mode else 'NONAKTIF'}
+╠══════════════════════════════════════════════════════════════╣
+║ 🎭 ROLE-SPECIFIC:
+║    Guilt: {self.guilt:.0f}% | Curiosity: {self.curiosity:.0f}%
+║    Sexy Mode: {'✅ AKTIF' if self.sexy_mode else '❌ NONAKTIF'}
+║    Flirty Confidence: {self.flirty_confidence:.0f}%
 """
     
     def to_dict(self) -> Dict:
-        """Serialize ke dict dengan memory lengkap"""
+        """Serialize ke dict dengan semua state"""
         data = super().to_dict()
         data.update({
-            'nickname': self.nickname,
             'guilt': self.guilt,
             'curiosity': self.curiosity,
             'sexy_mode': self.sexy_mode,
-            'short_term_memory': self.short_term_memory[-30:],
-            'long_term_memory': self.long_term_memory
+            'flirty_confidence': self.flirty_confidence
         })
         return data
     
     def from_dict(self, data: Dict):
-        """Load dari dict dengan memory lengkap"""
+        """Load dari dict"""
         super().from_dict(data)
-        self.nickname = data.get('nickname', self.nickname)
         self.guilt = data.get('guilt', 0)
         self.curiosity = data.get('curiosity', 50)
         self.sexy_mode = data.get('sexy_mode', False)
-        self.short_term_memory = data.get('short_term_memory', [])
-        self.long_term_memory = data.get('long_term_memory', self.long_term_memory)
+        self.flirty_confidence = data.get('flirty_confidence', 30)
+        
+        # Update role_flags
+        self.role_flags.update({
+            'guilt': self.guilt,
+            'curiosity': self.curiosity,
+            'sexy_mode': self.sexy_mode,
+            'flirty_confidence': self.flirty_confidence
+        })
