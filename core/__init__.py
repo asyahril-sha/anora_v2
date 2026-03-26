@@ -42,7 +42,6 @@ from .brain import (
     Mood,
     Clothing,
     Feelings,
-    Relationship,
     TimelineEvent,
     LongTermMemory,
     get_anora_brain,
