@@ -584,4 +584,4 @@ async def get_anora_roleplay() -> AnoraRoleplay:
     return _anora_roleplay
 
 
-anora_roleplay = await get_anora_roleplay()
+anora_roleplay = None
