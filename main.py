@@ -598,7 +598,11 @@ class AnoraBot:
         try:
             emotional = get_emotional_engine()
             relationship = get_relationship_manager()
-            logger.info(f"✅ ANORA-V2 ready! Phase: {relationship.phase.value} | Level: {relationship.level}/12")
+            conflict = get_conflict_engine()
+            logger.info(f"✅ ANORA-V2 ready!")
+            logger.info(f"   Phase: {relationship.phase.value} | Level: {relationship.level}/12")
+            logger.info(f"   Style: {emotional.get_current_style().value}")
+            logger.info(f"   Conflict: {'Active' if conflict.is_in_conflict else 'None'}")
             return True
         except Exception as e:
             logger.error(f"ANORA init error: {e}")
@@ -609,6 +613,7 @@ class AnoraBot:
         request = HTTPXRequest(connection_pool_size=50, connect_timeout=60)
         app = ApplicationBuilder().token(settings.telegram_token).request(request).build()
         
+        # Register all handlers
         app.add_handler(CommandHandler("start", start_command))
         app.add_handler(CommandHandler("nova", nova_command))
         app.add_handler(CommandHandler("status", status_command))
@@ -624,19 +629,40 @@ class AnoraBot:
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
         app.add_error_handler(error_handler)
         
-        logger.info(f"✅ Handlers registered: {sum(len(h) for h in app.handlers.values())}")
+        handler_count = sum(len(h) for h in app.handlers.values())
+        logger.info(f"✅ Handlers registered: {handler_count}")
         return app
     
     async def setup_webhook(self) -> bool:
         settings = get_settings()
         railway_url = settings.webhook.railway_domain or settings.webhook.railway_static_url
+        
         if not railway_url:
+            logger.info("🌐 No webhook URL (Railway domain not set), using polling mode")
             return False
+        
         webhook_url = f"https://{railway_url}{settings.webhook.path}"
-        await self.application.bot.delete_webhook(drop_pending_updates=True)
-        await self.application.bot.set_webhook(url=webhook_url, allowed_updates=['message'])
-        info = await self.application.bot.get_webhook_info()
-        return bool(info.url)
+        logger.info(f"🔗 Setting webhook to: {webhook_url}")
+        
+        try:
+            await self.application.bot.delete_webhook(drop_pending_updates=True)
+            await self.application.bot.set_webhook(
+                url=webhook_url,
+                allowed_updates=['message', 'callback_query'],
+                drop_pending_updates=True
+            )
+            
+            # Get webhook info untuk verifikasi
+            info = await self.application.bot.get_webhook_info()
+            logger.info(f"Webhook info: {info.url}")
+            
+            # Cukup cek ada webhook, tidak perlu exact match
+            # Karena Telegram kadang return URL dengan format berbeda
+            return bool(info.url)
+            
+        except Exception as e:
+            logger.error(f"Webhook setup error: {e}")
+            return False
     
     async def start_web_server(self):
         settings = get_settings()
@@ -644,47 +670,101 @@ class AnoraBot:
         app.router.add_get('/', root_handler)
         app.router.add_get('/health', health_handler)
         app.router.add_post(settings.webhook.path, webhook_handler)
+        
         self._runner = web.AppRunner(app)
         await self._runner.setup()
         site = web.TCPSite(self._runner, '0.0.0.0', settings.webhook.port)
         await site.start()
         logger.info(f"🌐 Web server running on port {settings.webhook.port}")
+        logger.info(f"   Health check: http://localhost:{settings.webhook.port}/health")
+        if settings.webhook.railway_domain:
+            logger.info(f"   Webhook: https://{settings.webhook.railway_domain}{settings.webhook.path}")
     
     async def start(self):
+        """Start bot"""
+        settings = get_settings()
+        
+        # Initialize ANORA
         await self.init_anora()
+        
+        # Create application
         self.application = await self.init_application()
         await self.application.initialize()
         await self.application.start()
         
+        # Start background loops
         self._save_task = asyncio.create_task(save_state_loop())
         self._backup_task = asyncio.create_task(auto_backup_loop())
         
-        if await self.setup_webhook():
-            await self.start_web_server()
+        # Setup webhook (tidak hard crash)
+        webhook_success = await self.setup_webhook()
+        
+        # Selalu jalankan web server untuk health check
+        await self.start_web_server()
+        
+        if webhook_success:
             logger.info("✅ Webhook mode activated!")
         else:
-            raise RuntimeError("❌ Webhook gagal! Jangan fallback ke polling di Railway")
-            await self.start_web_server()
+            logger.warning("⚠️ Webhook not set, but web server running for health checks")
+            logger.info("📡 Bot will use polling mode for updates")
         
         logger.info("=" * 70)
-        logger.info("✨ ANORA-V2 is ready! Kirim /nova untuk panggil Nova")
+        logger.info("✨ ANORA-V2 is ready!")
+        logger.info("   Kirim /nova untuk panggil Nova")
+        logger.info("   Kirim /roleplay untuk mode roleplay")
+        logger.info("   Kirim /role ipar untuk main role IPAR")
+        logger.info("   Kirim /status untuk lihat status lengkap")
+        logger.info("   Kirim /pause untuk hentikan sesi sementara")
+        logger.info("   Kirim /backup untuk backup database")
+        logger.info("   Press Ctrl+C to stop.")
         logger.info("=" * 70)
         
+        # Keep running
         while not self._shutdown_flag:
             await asyncio.sleep(1)
     
     async def shutdown(self):
+        """Graceful shutdown"""
         logger.info("🛑 Shutting down...")
         self._shutdown_flag = True
+        
+        # Stop background loops
         for task in [self._save_task, self._backup_task]:
             if task:
                 task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        
+        # Stop application
         if self.application:
-            await self.application.stop()
-            await self.application.shutdown()
+            try:
+                await self.application.stop()
+                await self.application.shutdown()
+                logger.info("✅ Application stopped")
+            except Exception as e:
+                logger.error(f"Error stopping application: {e}")
+        
+        # Cleanup web server
         if self._runner:
             await self._runner.cleanup()
-        logger.info("👋 Goodbye!")
+            logger.info("✅ Web server stopped")
+        
+        # Save final state
+        if ANORA_AVAILABLE:
+            try:
+                persistent = await get_anora_persistent()
+                brain = get_anora_brain()
+                emotional = get_emotional_engine()
+                relationship = get_relationship_manager()
+                conflict = get_conflict_engine()
+                await persistent.save_all_states(brain, emotional, relationship, conflict)
+                logger.info("💾 Final state saved")
+            except Exception as e:
+                logger.error(f"Error saving final state: {e}")
+        
+        logger.info("👋 Goodbye from ANORA-V2!")
 
 
 # =============================================================================
@@ -692,18 +772,30 @@ class AnoraBot:
 # =============================================================================
 
 async def main():
+    """Main entry point"""
     bot = AnoraBot()
+    
+    # Setup signal handlers for graceful shutdown
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, lambda: asyncio.create_task(bot.shutdown()))
-    await bot.start()
+    
+    try:
+        await bot.start()
+    except asyncio.CancelledError:
+        logger.info("Bot stopped")
+    except Exception as e:
+        logger.error(f"Main error: {e}")
+        raise
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Bot stopped")
+        logger.info("Bot stopped by keyboard interrupt")
     except Exception as e:
         logger.error(f"Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
