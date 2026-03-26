@@ -14,22 +14,6 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
 
-# =============================================================================
-# FORCE LOGGING DI AWAL
-# =============================================================================
-print("=== MAIN.PY STARTED ===", flush=True)
-sys.stdout.flush()
-
-# Setup basic logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s | %(levelname)-5s | %(name)s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    force=True
-)
-logger = logging.getLogger("MAIN")
-logger.info("=== MAIN.PY LOADING ===")
-
 from aiohttp import web
 from telegram import Update
 from telegram.ext import (
@@ -43,16 +27,25 @@ from telegram.ext import (
 from telegram.request import HTTPXRequest
 
 # Import config
-logger.info("Importing config...")
 from config import get_settings
-logger.info("Config imported")
+
+# =============================================================================
+# SETUP LOGGING - EARLY
+# =============================================================================
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s | %(levelname)-5s | %(name)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    force=True
+)
+logger = logging.getLogger("ANORA-V2")
 
 # =============================================================================
 # IMPORT ANORA-V2 COMPONENTS
 # =============================================================================
 ANORA_AVAILABLE = False
 try:
-    logger.info("Importing core modules...")
+    logger.info("Importing ANORA-V2 modules...")
     from core.emotional_engine import get_emotional_engine
     from core.relationship import get_relationship_manager
     from core.conflict_engine import get_conflict_engine
@@ -65,69 +58,8 @@ try:
     logger.info("✅ ANORA-V2 modules loaded")
 except ImportError as e:
     logger.warning(f"⚠️ ANORA-V2 not available: {e}")
-
-logger.info("=== MAIN.PY LOADED SUCCESSFULLY ===")
-
-# =============================================================================
-# FORCE LOGGING DI AWAL
-# =============================================================================
-print("=== MAIN.PY STARTED ===", flush=True)
-sys.stdout.flush()
-
-# Setup basic logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s | %(levelname)-5s | %(name)s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    force=True
-)
-logger = logging.getLogger("MAIN")
-logger.info("=== MAIN.PY LOADING ===")
-
-from aiohttp import web
-from telegram import Update
-from telegram.ext import (
-    Application,
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ContextTypes
-)
-from telegram.request import HTTPXRequest
-
-# Import config
-logger.info("Importing config...")
-from config import get_settings
-logger.info("Config imported")
-
-# =============================================================================
-# IMPORT ANORA-V2 COMPONENTS
-# =============================================================================
-ANORA_AVAILABLE = False
-try:
-    from core.emotional_engine import get_emotional_engine
-    from core.relationship import get_relationship_manager
-    from core.conflict_engine import get_conflict_engine
-    from core.brain import get_anora_brain
-    from memory.persistent import get_anora_persistent
-    from roleplay.integration import get_anora_roleplay
-    from roles.manager import get_role_manager
-    from worker.background import get_anora_worker
-    ANORA_AVAILABLE = True
-    logging.info("✅ ANORA-V2 modules loaded")
-except ImportError as e:
-    logging.warning(f"⚠️ ANORA-V2 not available: {e}")
-
-# =============================================================================
-# SETUP LOGGING
-# =============================================================================
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(levelname)-5s | %(name)s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger("ANORA-V2")
+    import traceback
+    traceback.print_exc()
 
 
 # =============================================================================
@@ -160,6 +92,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /start"""
     user_id = update.effective_user.id
     settings = get_settings()
+    
+    logger.info(f"📨 /start from user {user_id}")
     
     if user_id != settings.admin_id:
         await update.message.reply_text("Halo! Bot ini untuk Mas. 💜")
@@ -200,12 +134,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Kirim **/help** untuk bantuan.\n\nApa yang Mas mau? 💜",
         parse_mode='Markdown'
     )
+    logger.info(f"✅ /start response sent to user {user_id}")
 
 
 async def nova_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /nova"""
     user_id = update.effective_user.id
     settings = get_settings()
+    
+    logger.info(f"📨 /nova from user {user_id}")
     
     if user_id != settings.admin_id:
         await update.message.reply_text("Maaf, Nova cuma untuk Mas. 💜")
@@ -249,6 +186,7 @@ async def nova_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Apa yang Mas mau? 💜",
         parse_mode='Markdown'
     )
+    logger.info(f"✅ /nova response sent to user {user_id}")
 
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -524,6 +462,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not pesan:
         return
     
+    logger.info(f"📨 Message from {user_id}: {pesan[:50]}")
+    
     mode = get_user_mode(user_id)
     
     if mode == 'paused':
@@ -538,6 +478,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             respons = await roleplay.process(pesan)
             await update.message.reply_text(respons, parse_mode='Markdown')
+            logger.info(f"✅ Roleplay response sent")
         except Exception as e:
             logger.error(f"Roleplay error: {e}")
             await update.message.reply_text("*Nova bingung sebentar*", parse_mode='Markdown')
@@ -550,6 +491,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 respons = await role_manager.chat(active_role, pesan)
                 await update.message.reply_text(respons, parse_mode='Markdown')
+                logger.info(f"✅ Role response sent")
             except Exception as e:
                 logger.error(f"Role chat error: {e}")
                 await update.message.reply_text("Maaf, ada error.")
@@ -560,6 +502,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*Nova tersenyum*\n\n\"Iya, Mas. Nova dengerin kok.\"",
         parse_mode='Markdown'
     )
+    logger.info(f"✅ Default response sent")
 
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -585,26 +528,36 @@ async def webhook_handler(request):
     
     logger.info(f"📨 Webhook called: {request.method} {request.path}")
     
+    # Handle GET request (browser access)
     if request.method == 'GET':
         return web.Response(
             text="This endpoint is for Telegram webhook. Use POST method.",
             status=405
         )
     
+    # Check application ready
     if not _application:
-        logger.error("❌ Application not ready")
+        logger.error("❌ _application is None! Bot not ready")
         return web.Response(status=503, text='Bot not ready')
+    
+    logger.info(f"✅ _application ready: {_application}")
     
     try:
         update_data = await request.json()
-        logger.info(f"📨 Webhook received update: {update_data.get('message', {}).get('text', 'no text')}")
+        logger.info(f"📨 Received update: {update_data}")
+        
+        if not update_data:
+            return web.Response(status=400, text='No data')
         
         update = Update.de_json(update_data, _application.bot)
         await _application.process_update(update)
+        logger.info("✅ Update processed successfully")
         return web.Response(text='OK', status=200)
         
     except Exception as e:
         logger.error(f"Webhook error: {e}")
+        import traceback
+        traceback.print_exc()
         return web.Response(status=500, text='Error')
 
 
@@ -641,6 +594,7 @@ async def save_state_loop():
             try:
                 roleplay = await get_anora_roleplay()
                 await roleplay.save_state()
+                logger.debug("💾 State saved")
             except Exception as e:
                 logger.error(f"Save state error: {e}")
 
@@ -694,6 +648,7 @@ class AnoraBot:
     
     async def init_application(self) -> Application:
         settings = get_settings()
+        logger.info("🔧 Initializing Telegram application...")
         request = HTTPXRequest(connection_pool_size=50, connect_timeout=60)
         app = ApplicationBuilder().token(settings.telegram_token).request(request).build()
         
@@ -736,11 +691,9 @@ class AnoraBot:
                 drop_pending_updates=True
             )
             
-            # Get webhook info untuk verifikasi
             info = await self.application.bot.get_webhook_info()
             logger.info(f"📡 Webhook info: {info.url}")
             
-            # Cek apakah URL yang diset sama
             if info.url == webhook_url:
                 logger.info("✅ Webhook verified!")
                 return True
@@ -754,8 +707,6 @@ class AnoraBot:
     
     async def start_web_server(self):
         settings = get_settings()
-        
-        # 🔥 IMPORTANT: Gunakan port dari environment variable Railway
         port = int(os.environ.get("PORT", 8080))
         
         app = web.Application()
@@ -775,7 +726,7 @@ class AnoraBot:
     
     async def start(self):
         """Start bot"""
-        settings = get_settings()
+        global _application
         
         logger.info("=" * 70)
         logger.info("🚀 ANORA-V2 Starting...")
@@ -789,14 +740,18 @@ class AnoraBot:
         await self.application.initialize()
         await self.application.start()
         
+        # 🔥 SET GLOBAL APPLICATION 🔥
+        _application = self.application
+        logger.info("✅ Application set to global variable")
+        
         # Start background loops
         self._save_task = asyncio.create_task(save_state_loop())
         self._backup_task = asyncio.create_task(auto_backup_loop())
         
-        # Setup webhook (tidak hard crash)
+        # Setup webhook
         webhook_success = await self.setup_webhook()
         
-        # Selalu jalankan web server untuk health check
+        # Always start web server
         await self.start_web_server()
         
         if webhook_success:
@@ -807,7 +762,7 @@ class AnoraBot:
         
         logger.info("=" * 70)
         logger.info("✨ ANORA-V2 is ready!")
-        logger.info(f"👑 Admin ID: {settings.admin_id}")
+        logger.info(f"👑 Admin ID: {get_settings().admin_id}")
         logger.info("   Kirim /nova untuk panggil Nova")
         logger.info("   Kirim /roleplay untuk mode roleplay")
         logger.info("   Kirim /role ipar untuk main role IPAR")
