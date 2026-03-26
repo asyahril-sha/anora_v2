@@ -311,9 +311,10 @@ class PersistentMemory:
             await self._conn.execute(
                 "INSERT OR REPLACE INTO complete_state_v2 (id, mas_state, nova_state, together_state, updated_at) VALUES (1, ?, ?, ?, ?)",
                 (
-                    json.dumps(complete['mas'], default=safe_serialize)
-                    json.dumps(complete['nova'], default=safe_serialize)
-                    json.dumps(complete['together'], default=safe_serialize)
+                    json.dumps(complete['mas'], default=safe_serialize),
+                    json.dumps(complete['nova'], default=safe_serialize),
+                    json.dumps(complete['together'], default=safe_serialize),
+                    time.time()
                 )
             )
             await self._conn.commit()
