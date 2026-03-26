@@ -14,6 +14,22 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
 
+# =============================================================================
+# FORCE LOGGING DI AWAL
+# =============================================================================
+print("=== MAIN.PY STARTED ===", flush=True)
+sys.stdout.flush()
+
+# Setup basic logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s | %(levelname)-5s | %(name)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    force=True
+)
+logger = logging.getLogger("MAIN")
+logger.info("=== MAIN.PY LOADING ===")
+
 from aiohttp import web
 from telegram import Update
 from telegram.ext import (
@@ -27,7 +43,63 @@ from telegram.ext import (
 from telegram.request import HTTPXRequest
 
 # Import config
+logger.info("Importing config...")
 from config import get_settings
+logger.info("Config imported")
+
+# =============================================================================
+# IMPORT ANORA-V2 COMPONENTS
+# =============================================================================
+ANORA_AVAILABLE = False
+try:
+    logger.info("Importing core modules...")
+    from core.emotional_engine import get_emotional_engine
+    from core.relationship import get_relationship_manager
+    from core.conflict_engine import get_conflict_engine
+    from core.brain import get_anora_brain
+    from memory.persistent import get_anora_persistent
+    from roleplay.integration import get_anora_roleplay
+    from roles.manager import get_role_manager
+    from worker.background import get_anora_worker
+    ANORA_AVAILABLE = True
+    logger.info("✅ ANORA-V2 modules loaded")
+except ImportError as e:
+    logger.warning(f"⚠️ ANORA-V2 not available: {e}")
+
+logger.info("=== MAIN.PY LOADED SUCCESSFULLY ===")
+
+# =============================================================================
+# FORCE LOGGING DI AWAL
+# =============================================================================
+print("=== MAIN.PY STARTED ===", flush=True)
+sys.stdout.flush()
+
+# Setup basic logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s | %(levelname)-5s | %(name)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    force=True
+)
+logger = logging.getLogger("MAIN")
+logger.info("=== MAIN.PY LOADING ===")
+
+from aiohttp import web
+from telegram import Update
+from telegram.ext import (
+    Application,
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes
+)
+from telegram.request import HTTPXRequest
+
+# Import config
+logger.info("Importing config...")
+from config import get_settings
+logger.info("Config imported")
 
 # =============================================================================
 # IMPORT ANORA-V2 COMPONENTS
