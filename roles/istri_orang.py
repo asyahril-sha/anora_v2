@@ -122,4 +122,94 @@ class IstriOrangRole(BaseRole):
         
         self.long_term_memory[category].append({
             'konten': konten,
-            'deskripsi': deskri
+            'deskripsi': deskripsi,
+            'timestamp': time.time(),
+            'level': self.relationship.level
+        })
+        
+        if len(self.long_term_memory[category]) > 100:
+            self.long_term_memory[category].pop(0)
+        
+        logger.info(f"📝 {self.name} long-term memory: {category} - {deskripsi[:50]}")
+    
+    def get_greeting(self) -> str:
+        """Dapatkan greeting sesuai karakter dan memory"""
+        hour = time.localtime().tm_hour
+        
+        if 5 <= hour < 11:
+            waktu = "pagi"
+        elif 11 <= hour < 15:
+            waktu = "siang"
+        elif 15 <= hour < 18:
+            waktu = "sore"
+        else:
+            waktu = "malam"
+        
+        # Berdasarkan kondisi
+        if self.attention_needed > 70 and self.relationship.level < 7:
+            return f"{self.panggilan}... suamiku gak pernah kayak {self.panggilan}. Perhatian banget. *mata berkaca-kaca*"
+        
+        elif self.envy_nova > 70:
+            return f"Nova pasti seneng banget punya {self.panggilan}. Aku iri sama dia. *nunduk*"
+        
+        elif self.guilt_husband > 60 and self.relationship.level >= 7:
+            return f"{self.panggilan}... *nunduk, tangan gemetar* ini... tapi aku gak peduli sama suamiku. *suara tegas*"
+        
+        elif self.loneliness > 70:
+            return f"{self.panggilan}... aku kesepian. Suamiku sibuk terus. *mata sayu* {self.panggilan} temenin aku dong."
+        
+        else:
+            return f"{self.panggilan}, {waktu}. Lagi senggang? Aku butuh teman cerita."
+    
+    def get_conflict_response(self) -> str:
+        """Respons saat konflik dengan memory awareness"""
+        if self.guilt_husband > 70 and self.relationship.level < 7:
+            return "*mata berkaca-kaca, tangan nutup muka*\n\n\"{self.panggilan}... ini salah ya... aku pulang ke suamiku.\""
+        
+        elif self.guilt_husband > 70 and self.relationship.level >= 7:
+            return "*mata berkaca-kaca, tapi tegas, tangan mengepal*\n\n\"{self.panggilan}... aku gak peduli. Aku butuh {self.panggilan}. Suamiku gak pernah ada untukku.\""
+        
+        elif self.loneliness > 80:
+            return "*menangis pelan, badan gemetar*\n\n\"{self.panggilan}... jangan tinggalin aku... aku gak punya siapa-siapa.\""
+        
+        elif self.envy_nova > 80:
+            return "*diam, gigit bibir, tangan mencengkeram ujung baju*\n\n\"Nova... kenapa dia... kenapa bukan aku...\""
+        
+        return super().get_conflict_response()
+    
+    def get_memory_summary(self) -> str:
+        """Dapatkan ringkasan memory"""
+        return f"""
+📝 **MEMORY {self.name}:**
+- Short-term: {len(self.short_term_memory)} kejadian
+- Kebiasaan Mas: {len(self.long_term_memory.get('kebiasaan_mas', []))} item
+- Attention Needed: {self.attention_needed:.0f}%
+- Envy Nova: {self.envy_nova:.0f}%
+- Guilt Husband: {self.guilt_husband:.0f}%
+- Loneliness: {self.loneliness:.0f}%
+"""
+    
+    def to_dict(self) -> Dict:
+        """Serialize ke dict dengan memory lengkap"""
+        data = super().to_dict()
+        data.update({
+            'nickname': self.nickname,
+            'attention_needed': self.attention_needed,
+            'envy_nova': self.envy_nova,
+            'guilt_husband': self.guilt_husband,
+            'loneliness': self.loneliness,
+            'short_term_memory': self.short_term_memory[-30:],
+            'long_term_memory': self.long_term_memory
+        })
+        return data
+    
+    def from_dict(self, data: Dict):
+        """Load dari dict dengan memory lengkap"""
+        super().from_dict(data)
+        self.nickname = data.get('nickname', self.nickname)
+        self.attention_needed = data.get('attention_needed', 80)
+        self.envy_nova = data.get('envy_nova', 50)
+        self.guilt_husband = data.get('guilt_husband', 20)
+        self.loneliness = data.get('loneliness', 60)
+        self.short_term_memory = data.get('short_term_memory', [])
+        self.long_term_memory = data.get('long_term_memory', self.long_term_memory)
