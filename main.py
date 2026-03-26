@@ -33,7 +33,7 @@ from config import get_settings
 # SETUP LOGGING - EARLY
 # =============================================================================
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s | %(levelname)-5s | %(name)s | %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
     force=True
@@ -477,19 +477,20 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if mode == 'roleplay' and ANORA_AVAILABLE:
-        logger.info(f"🎭 Processing roleplay message: {pesan}")
-        try:
-            roleplay = await get_anora_roleplay()
-            logger.info(f"✅ Roleplay instance obtained")
-            respons = await roleplay.process(pesan)
-            logger.info(f"✅ Roleplay response generated: {respons[:50]}...")
-            await update.message.reply_text(respons, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"❌ Roleplay error: {e}")
-            import traceback
-            traceback.print_exc()
-            await update.message.reply_text("*Nova bingung sebentar*", parse_mode='Markdown')
-        return
+    logger.info(f"🎭 ROLEPLAY MODE ACTIVE - processing: {pesan}")
+    try:
+        roleplay = await get_anora_roleplay()
+        logger.info(f"✅ Roleplay instance: {roleplay}")
+        logger.info(f"✅ Roleplay is_active: {roleplay.is_active}")
+        respons = await roleplay.process(pesan)
+        logger.info(f"✅ Roleplay response: {respons[:100]}...")
+        await update.message.reply_text(respons, parse_mode='Markdown')
+    except Exception as e:
+        logger.error(f"❌ Roleplay error: {e}")
+        import traceback
+        traceback.print_exc()
+        await update.message.reply_text("*Nova bingung sebentar*", parse_mode='Markdown')
+    return
     
     if mode == 'role' and ANORA_AVAILABLE:
         active_role = get_active_role(user_id)
