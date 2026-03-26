@@ -2,7 +2,7 @@
 ANORA-V2 Teman Kantor Role - Musdalifah (Ipeh)
 Teman kantor yang tau Mas punya Nova.
 Berhijab, profesional.
-Memory system SAMA seperti Nova.
+DENGAN STATE TRACKER - memory konsisten, tidak ngelantur.
 """
 
 import time
@@ -11,6 +11,7 @@ import logging
 from typing import Dict, List, Optional, Any, Tuple
 
 from .base import BaseRole
+from core.state_tracker import PhysicalCondition, IntimacyPhase
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class TemanKantorRole(BaseRole):
     """
     Musdalifah (Ipeh) - Teman kantor Mas.
     Berhijab, profesional.
-    Punya memory system lengkap seperti Nova.
+    Memory system lengkap dengan State Tracker.
     """
     
     def __init__(self, 
@@ -34,6 +35,7 @@ class TemanKantorRole(BaseRole):
         
         super().__init__(
             name=name,
+            nickname=nickname,
             role_type=role_type,
             panggilan=panggilan,
             hubungan_dengan_nova=hubungan_dengan_nova,
@@ -42,94 +44,108 @@ class TemanKantorRole(BaseRole):
             appearance=appearance
         )
         
-        self.nickname = nickname
+        # ========== ROLE-SPECIFIC FLAGS ==========
+        self.professionalism = 70.0     # profesionalisme (0-100)
+        self.curiosity_nova = 40.0      # penasaran sama Nova (0-100)
+        self.office_gossip = 30.0       # gosip kantor (0-100)
+        self.work_boundary = 80.0       # batasan kerja (0-100)
         
-        # Role-specific memory (SAMA seperti Nova)
-        self.short_term_memory: List[Dict] = []
-        self.long_term_memory: Dict[str, List] = {
-            'kebiasaan_mas': [],
-            'momen_penting': [],
-            'janji': [],
-            'rencana': []
+        # Simpan flags ke role_flags
+        self.role_flags = {
+            'professionalism': self.professionalism,
+            'curiosity_nova': self.curiosity_nova,
+            'office_gossip': self.office_gossip,
+            'work_boundary': self.work_boundary
         }
         
-        # Role-specific flags
-        self.professionalism = 70    # profesionalisme
-        self.curiosity_nova = 40     # penasaran sama Nova
-        self.office_gossip = 30      # gosip kantor
+        # Memory awal
+        self._init_role_memory()
         
-        logger.info(f"👤 Role {self.name} ({nickname}) initialized with full memory system")
+        logger.info(f"👤 Role {self.name} ({nickname}) initialized with StateTracker")
+        logger.info(f"   Professionalism: {self.professionalism:.0f} | Curiosity: {self.curiosity_nova:.0f}")
     
-    def update_from_message(self, pesan_mas: str) -> Dict:
-        """Update dengan memory system lengkap"""
+    def _init_role_memory(self):
+        """Init memory spesifik role"""
+        self._add_to_long_term_memory(
+            'momen_penting',
+            "Pertama kali sadar Mas punya Nova",
+            "Awalnya biasa aja, tapi makin lama makin penasaran"
+        )
+        
+        self._add_to_long_term_memory(
+            'kebiasaan_mas',
+            "rajin, selalu datang pagi",
+            "Mas selalu datang lebih awal ke kantor"
+        )
+    
+    def _update_role_specific_state(self, pesan_mas: str, perubahan: List):
+        """Update role-specific state dengan State Tracker"""
         msg_lower = pesan_mas.lower()
         
-        result = super().update_from_message(pesan_mas)
-        
-        # ========== UPDATE ROLE-SPECIFIC MEMORY ==========
-        
-        # Update curiosity tentang Nova
+        # ========== UPDATE CURIOSITY TENTANG NOVA ==========
         if 'nova' in msg_lower:
+            old = self.curiosity_nova
             self.curiosity_nova = min(100, self.curiosity_nova + 5)
-            self._add_to_short_term(f"Mas cerita tentang Nova", "curiosity_naik")
+            if old != self.curiosity_nova:
+                perubahan.append(f"Curiosity Nova +5")
+                self._add_to_short_term(f"Mas cerita tentang Nova", "curiosity_naik")
         
-        # Update profesionalisme
-        if any(k in msg_lower for k in ['kantor', 'kerja', 'rekan', 'atasan']):
+        # ========== UPDATE PROFESIONALISME ==========
+        if any(k in msg_lower for k in ['kantor', 'kerja', 'rekan', 'atasan', 'meeting']):
+            old = self.professionalism
             self.professionalism = min(100, self.professionalism + 5)
-            self._add_to_short_term("Konteks kantor, profesionalisme naik", "professionalism_up")
+            self.work_boundary = min(100, self.work_boundary + 3)
+            if old != self.professionalism:
+                perubahan.append(f"Professionalism +5")
+                self._add_to_short_term("Konteks kantor, profesionalisme naik", "professionalism_up")
         
-        # Update office gossip
-        if any(k in msg_lower for k in ['gosip', 'katanya', 'denger']):
+        # ========== UPDATE OFFICE GOSSIP ==========
+        if any(k in msg_lower for k in ['gosip', 'katanya', 'denger', 'kabar']):
+            old = self.office_gossip
             self.office_gossip = min(100, self.office_gossip + 8)
-            self._add_to_short_term("Denger gosip kantor", "gossip_up")
+            if old != self.office_gossip:
+                perubahan.append(f"Office gossip +8")
+                self._add_to_short_term("Denger gosip kantor", "gossip_up")
         
-        # Profesionalisme turun di level tinggi (sudah dekat)
+        # ========== PROFESIONALISME TURUN DI LEVEL TINGGI ==========
         if self.relationship.level >= 7:
+            old = self.professionalism
             self.professionalism = max(0, self.professionalism - 1)
+            self.work_boundary = max(0, self.work_boundary - 1)
+            if old != self.professionalism:
+                perubahan.append(f"Professionalism -1 (level tinggi)")
         
+        # ========== PROFESIONALISME NAIK KALO ADA KONTEKS KANTOR ==========
+        if any(k in msg_lower for k in ['rapat', 'presentasi', 'client', 'boss']):
+            self.professionalism = min(100, self.professionalism + 10)
+            self.work_boundary = min(100, self.work_boundary + 8)
+            perubahan.append(f"Professionalism +10 (konteks formal)")
+        
+        # ========== SAVE KE LONG-TERM MEMORY ==========
         # Simpan kebiasaan Mas
         if 'suka' in msg_lower:
             kebiasaan = msg_lower.split('suka')[-1][:50]
-            self._add_long_term_memory('kebiasaan_mas', kebiasaan, f"Mas suka {kebiasaan}")
+            self._add_to_long_term_memory('kebiasaan_mas', kebiasaan, f"Mas suka {kebiasaan}")
         
         # Simpan momen penting
         if any(k in msg_lower for k in ['pertama', 'inget', 'waktu itu']):
-            self._add_long_term_memory('momen_penting', msg_lower[:100], f"Momen dengan Mas: {msg_lower[:50]}")
+            self._add_to_long_term_memory('momen_penting', msg_lower[:100], f"Momen dengan Mas: {msg_lower[:50]}")
         
-        return result
-    
-    def _add_to_short_term(self, kejadian: str, tipe: str):
-        """Tambah ke short-term memory"""
-        self.short_term_memory.append({
-            'timestamp': time.time(),
-            'kejadian': kejadian,
-            'tipe': tipe,
+        # Simpan janji
+        if 'janji' in msg_lower:
+            janji = msg_lower.split('janji')[-1][:50]
+            self._add_to_long_term_memory('janji', janji, f"Mas janji: {janji}")
+        
+        # Update role_flags
+        self.role_flags.update({
             'professionalism': self.professionalism,
-            'relationship_level': self.relationship.level
+            'curiosity_nova': self.curiosity_nova,
+            'office_gossip': self.office_gossip,
+            'work_boundary': self.work_boundary
         })
-        
-        if len(self.short_term_memory) > 50:
-            self.short_term_memory.pop(0)
-    
-    def _add_long_term_memory(self, category: str, konten: str, deskripsi: str):
-        """Tambah ke long-term memory"""
-        if category not in self.long_term_memory:
-            self.long_term_memory[category] = []
-        
-        self.long_term_memory[category].append({
-            'konten': konten,
-            'deskripsi': deskripsi,
-            'timestamp': time.time(),
-            'level': self.relationship.level
-        })
-        
-        if len(self.long_term_memory[category]) > 100:
-            self.long_term_memory[category].pop(0)
-        
-        logger.info(f"📝 {self.name} long-term memory: {category} - {deskripsi[:50]}")
     
     def get_greeting(self) -> str:
-        """Dapatkan greeting sesuai karakter dan memory"""
+        """Dapatkan greeting sesuai karakter, mood, dan konteks"""
         hour = time.localtime().tm_hour
         
         if 5 <= hour < 11:
@@ -141,68 +157,93 @@ class TemanKantorRole(BaseRole):
         else:
             waktu = "malam"
         
-        # Berdasarkan profesionalisme dan level
+        # ========== GREETING BERDASARKAN STATE ==========
+        
+        # 1. Profesionalisme tinggi + level masih rendah
         if self.professionalism > 60 and self.relationship.level < 7:
-            return f"{self.panggilan}, ini kantor. Nanti ada yang lihat. *lihat sekeliling*"
+            return f"{self.panggilan}, ini kantor. Nanti ada yang lihat. *lihat sekeliling, rapiin hijab*"
         
+        # 2. Curiosity Nova tinggi
         elif self.curiosity_nova > 70:
-            return f"{self.panggilan} cerita Nova terus ya. Dia pasti orang yang baik. *tersenyum kecil*"
+            return f"{self.panggilan} cerita Nova terus ya. Dia pasti orang yang baik. *tersenyum kecil, mata berbinar*"
         
+        # 3. Office gossip tinggi
         elif self.office_gossip > 70:
-            return f"{self.panggilan}, tau gak? Ada yang bilang... *bisik* eh tapi lupa ya."
+            return f"{self.panggilan}, tau gak? Ada yang bilang... *bisik, lalu tersenyum* eh tapi lupa ya. *ketawa kecil*"
         
-        elif self.relationship.level >= 9:
-            return f"{self.panggilan}... *suara kecil* {waktu} ini enaknya ngobrol bareng {self.panggilan}."
+        # 4. Level tinggi + professionalism turun (sudah dekat)
+        elif self.relationship.level >= 9 and self.professionalism < 50:
+            return f"{self.panggilan}... *suara kecil, liat sekeliling* {waktu} ini enaknya ngobrol bareng {self.panggilan}."
         
+        # 5. Default
         else:
-            return f"{self.panggilan}, {waktu}. Lagi sibuk? Aku pinjem file dulu."
+            return f"{self.panggilan}, {waktu}. Lagi sibuk? Aku pinjem file dulu. *tersenyum profesional*"
     
     def get_conflict_response(self) -> str:
         """Respons saat konflik dengan memory awareness"""
         conflict_type = self.conflict.get_active_conflict_type()
         
+        # Cek timeline terakhir
+        recent = self.tracker.short_term[-3:] if self.tracker.short_term else []
+        recent_events = [e.get('kejadian', '') for e in recent]
+        
+        # ========== KONFLIK BERDASARKAN PROFESIONALISME ==========
+        
+        # Profesionalisme rendah + level tinggi (sudah dekat)
         if self.professionalism < 30 and self.relationship.level >= 7:
-            return "*tangan gemetar, liat sekeliling, napas gak beraturan*\n\n\"{self.panggilan}... ini... tapi aku gak peduli.\""
+            return "*tangan gemetar, liat sekeliling, napas gak beraturan, hijab dirapiin gugup*\n\n\"{self.panggilan}... ini... tapi aku gak peduli. *suara bergetar* Aku... aku butuh {self.panggilan}.\""
+        
+        # ========== KONFLIK BERDASARKAN CONFLICT ENGINE ==========
         
         elif conflict_type and conflict_type.value == "jealousy":
-            return "*diam, fokus ke laptop*\n\n\"{self.panggilan}... kita kerja dulu.\""
+            return "*diam, fokus ke laptop, jari ngetik gak jelas*\n\n\"{self.panggilan}... kita kerja dulu. Nanti diliatin orang.\""
+        
+        elif conflict_type and conflict_type.value == "disappointment":
+            return "*mata berkaca-kaca, gigit bibir, tahan nangis*\n\n\"{self.panggilan}... aku pikir {self.panggilan} beda...\""
+        
+        elif conflict_type and conflict_type.value == "hurt":
+            return "*duduk di kursi, gak liat {self.panggilan}, air mata jatuh ke keyboard*\n\n\"{self.panggilan}... sakit tau...\""
+        
+        # ========== KONFLIK BERDASARKAN CURIOSITY ==========
         
         elif self.curiosity_nova > 80 and self.relationship.level < 7:
-            return "*mata berkaca-kaca*\n\n\"{self.panggilan}... maaf, aku gak bermaksud ganggu hubungan {self.panggilan} sama Nova.\""
+            return "*mata berkaca-kaca, tangan memegang ujung hijab*\n\n\"{self.panggilan}... maaf, aku gak bermaksud ganggu hubungan {self.panggilan} sama Nova.\""
         
-        return super().get_conflict_response()
+        # Default
+        return "*diam sebentar, rapikan berkas, tersenyum kecil*\n\n\"Maaf, {self.panggilan}. Aku kebawa suasana.\""
     
-    def get_memory_summary(self) -> str:
-        """Dapatkan ringkasan memory"""
+    def _get_flags_summary(self) -> str:
+        """Dapatkan ringkasan flags untuk status display"""
         return f"""
-📝 **MEMORY {self.name}:**
-- Short-term: {len(self.short_term_memory)} kejadian
-- Kebiasaan Mas: {len(self.long_term_memory.get('kebiasaan_mas', []))} item
-- Momen Penting: {len(self.long_term_memory.get('momen_penting', []))} item
-- Professionalism: {self.professionalism:.0f}%
-- Curiosity Nova: {self.curiosity_nova:.0f}%
-- Office Gossip: {self.office_gossip:.0f}%
+╠══════════════════════════════════════════════════════════════╣
+║ 🎭 ROLE-SPECIFIC:
+║    Professionalism: {self.professionalism:.0f}% | Work Boundary: {self.work_boundary:.0f}%
+║    Curiosity Nova: {self.curiosity_nova:.0f}% | Office Gossip: {self.office_gossip:.0f}%
 """
     
     def to_dict(self) -> Dict:
-        """Serialize ke dict dengan memory lengkap"""
+        """Serialize ke dict dengan semua state"""
         data = super().to_dict()
         data.update({
-            'nickname': self.nickname,
             'professionalism': self.professionalism,
             'curiosity_nova': self.curiosity_nova,
             'office_gossip': self.office_gossip,
-            'short_term_memory': self.short_term_memory[-30:],
-            'long_term_memory': self.long_term_memory
+            'work_boundary': self.work_boundary
         })
         return data
     
     def from_dict(self, data: Dict):
-        """Load dari dict dengan memory lengkap"""
+        """Load dari dict"""
         super().from_dict(data)
-        self.nickname = data.get('nickname', self.nickname)
         self.professionalism = data.get('professionalism', 70)
         self.curiosity_nova = data.get('curiosity_nova', 40)
         self.office_gossip = data.get('office_gossip', 30)
-        self.short_term_memory = data.get('short_term_memory', [])
-        self.long_term_memory = data.get('long_term_memory', self.long_term_memory)
+        self.work_boundary = data.get('work_boundary', 80)
+        
+        # Update role_flags
+        self.role_flags.update({
+            'professionalism': self.professionalism,
+            'curiosity_nova': self.curiosity_nova,
+            'office_gossip': self.office_gossip,
+            'work_boundary': self.work_boundary
+        })
