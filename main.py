@@ -511,7 +511,7 @@ async def webhook_handler(request):
     """Handle Telegram webhook"""
     global _application
     
-    # Handle GET request (browser access)
+    # Handle GET request (browser access) - ini normal
     if request.method == 'GET':
         return web.Response(
             text="This endpoint is for Telegram webhook. Use POST method.",
@@ -525,6 +525,9 @@ async def webhook_handler(request):
         update_data = await request.json()
         if not update_data:
             return web.Response(status=400, text='No data')
+        
+        # Log incoming update (debug)
+        logger.info(f"📨 Webhook received: {update_data.get('message', {}).get('text', 'no text')}")
         
         update = Update.de_json(update_data, _application.bot)
         await _application.process_update(update)
@@ -665,11 +668,15 @@ class AnoraBot:
             
             # Get webhook info untuk verifikasi
             info = await self.application.bot.get_webhook_info()
-            logger.info(f"Webhook info: {info.url}")
+            logger.info(f"📡 Webhook info: {info.url}")
             
-            # Cukup cek ada webhook, tidak perlu exact match
-            # Karena Telegram kadang return URL dengan format berbeda
-            return bool(info.url)
+            # Cek apakah URL yang diset sama
+            if info.url == webhook_url:
+                logger.info("✅ Webhook verified!")
+                return True
+            else:
+                logger.warning(f"⚠️ Webhook URL mismatch: set={webhook_url}, actual={info.url}")
+                return False
             
         except Exception as e:
             logger.error(f"Webhook setup error: {e}")
@@ -677,6 +684,10 @@ class AnoraBot:
     
     async def start_web_server(self):
         settings = get_settings()
+        
+        # 🔥 IMPORTANT: Gunakan port dari environment variable Railway
+        port = int(os.environ.get("PORT", 8080))
+        
         app = web.Application()
         app.router.add_get('/', root_handler)
         app.router.add_get('/health', health_handler)
@@ -684,16 +695,21 @@ class AnoraBot:
         
         self._runner = web.AppRunner(app)
         await self._runner.setup()
-        site = web.TCPSite(self._runner, '0.0.0.0', settings.webhook.port)
+        site = web.TCPSite(self._runner, '0.0.0.0', port)
         await site.start()
-        logger.info(f"🌐 Web server running on port {settings.webhook.port}")
-        logger.info(f"   Health check: http://localhost:{settings.webhook.port}/health")
+        logger.info(f"🌐 Web server running on port {port}")
+        logger.info(f"   Health check: http://localhost:{port}/health")
+        logger.info(f"   Webhook endpoint: POST http://localhost:{port}{settings.webhook.path}")
         if settings.webhook.railway_domain:
-            logger.info(f"   Webhook: https://{settings.webhook.railway_domain}{settings.webhook.path}")
+            logger.info(f"   Public URL: https://{settings.webhook.railway_domain}{settings.webhook.path}")
     
     async def start(self):
         """Start bot"""
         settings = get_settings()
+        
+        logger.info("=" * 70)
+        logger.info("🚀 ANORA-V2 Starting...")
+        logger.info("=" * 70)
         
         # Initialize ANORA
         await self.init_anora()
@@ -714,20 +730,20 @@ class AnoraBot:
         await self.start_web_server()
         
         if webhook_success:
-            logger.info("✅ Webhook mode activated!")
+            logger.info("✅ Webhook mode activated! Bot is ready to receive messages.")
         else:
-            logger.warning("⚠️ Webhook not set, but web server running for health checks")
-            logger.info("📡 Bot will use polling mode for updates")
+            logger.warning("⚠️ Webhook not set properly, but web server is running.")
+            logger.info("📡 Check: RAILWAY_PUBLIC_DOMAIN environment variable")
         
         logger.info("=" * 70)
         logger.info("✨ ANORA-V2 is ready!")
+        logger.info(f"👑 Admin ID: {settings.admin_id}")
         logger.info("   Kirim /nova untuk panggil Nova")
         logger.info("   Kirim /roleplay untuk mode roleplay")
         logger.info("   Kirim /role ipar untuk main role IPAR")
         logger.info("   Kirim /status untuk lihat status lengkap")
         logger.info("   Kirim /pause untuk hentikan sesi sementara")
         logger.info("   Kirim /backup untuk backup database")
-        logger.info("   Press Ctrl+C to stop.")
         logger.info("=" * 70)
         
         # Keep running
