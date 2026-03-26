@@ -4,7 +4,7 @@
     "buildCommand": "pip install -r requirements.txt"
   },
   "deploy": {
-    "startCommand": "cd /app && PYTHONPATH=/app python -m anora_v2.main"
+    "startCommand": "cd /app && PYTHONPATH=/app python -m anora_v2.main",
     "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
