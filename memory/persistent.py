@@ -13,6 +13,18 @@ from typing import Dict, List, Optional, Any
 
 logger = logging.getLogger(__name__)
 
+def safe_serialize(obj):
+    try:
+        if hasattr(obj, "to_dict"):
+            return obj.to_dict()
+        if hasattr(obj, "__dict__"):
+            return obj.__dict__
+        if hasattr(obj, "value"):
+            return obj.value
+        return str(obj)
+    except:
+        return str(obj)
+
 
 class PersistentMemory:
     """
@@ -27,6 +39,7 @@ class PersistentMemory:
     async def init(self):
         """Buat semua tabel memory"""
         self._conn = await aiosqlite.connect(str(self.db_path))
+        self._conn.row_factory = aiosqlite.Row
         
         # ========== TABEL STATE UTAMA ==========
         await self._conn.execute('''
@@ -297,8 +310,11 @@ class PersistentMemory:
             complete = brain.complete_state
             await self._conn.execute(
                 "INSERT OR REPLACE INTO complete_state_v2 (id, mas_state, nova_state, together_state, updated_at) VALUES (1, ?, ?, ?, ?)",
-                (json.dumps(complete['mas']), json.dumps(complete['nova']), 
-                 json.dumps(complete['together']), time.time())
+                (
+                    json.dumps(complete['mas'], default=safe_serialize)
+                    json.dumps(complete['nova'], default=safe_serialize)
+                    json.dumps(complete['together'], default=safe_serialize)
+                )
             )
             await self._conn.commit()
         except Exception as e:
@@ -375,7 +391,7 @@ class PersistentMemory:
             await self._conn.execute(
                 "INSERT OR REPLACE INTO relationship_state_v2 (id, phase, level, interaction_count, milestones, updated_at) VALUES (1, ?, ?, ?, ?, ?)",
                 (relationship_manager.phase.value, relationship_manager.level,
-                 relationship_manager.interaction_count, json.dumps(milestones_dict), time.time())
+                 relationship_manager.interaction_count, json.dumps(milestones_dict, default=safe_serialize), time.time())
             )
             await self._conn.commit()
         except Exception as e:
@@ -480,7 +496,7 @@ class PersistentMemory:
                 brain.mood_mas.value if hasattr(brain.mood_mas, 'value') else str(brain.mood_mas),
                 json.dumps(brain.feelings.to_dict()),
                 json.dumps(brain.relationship_state.to_dict()),
-                json.dumps(brain.complete_state), time.time()
+                json.dumps(brain.complete_state, default=safe_serialize), time.time()
             ))
             await self._conn.commit()
         except Exception as e:
@@ -542,7 +558,7 @@ class PersistentMemory:
         await self._conn.execute('''
             INSERT INTO conversation_v2 (timestamp, role, message, state_snapshot)
             VALUES (?, ?, ?, ?)
-        ''', (time.time(), role, message[:2000], json.dumps(state_snapshot) if state_snapshot else None))
+        ''', (time.time(), role, message[:2000], json.dumps(state_snapshot, default=safe_serialize) if state_snapshot else None))
         await self._conn.commit()
     
     async def save_location_visit(self, location_id: str, nama: str):
