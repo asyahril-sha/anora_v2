@@ -1,47 +1,41 @@
 anora_v2/
 ├── __init__.py
-├── main.py                    # dari anora_deploy.py
-├── config.py                  # baru, ambil dari settings
+├── main.py
+├── config.py
 ├── requirements.txt
 ├── railway.json
 ├── .env.example
-│
-├── core/                      # inti mesin
+├── core/
 │   ├── __init__.py
-│   ├── emotional_engine.py    # dari anora99/emotional_engine.py
-│   ├── decision_engine.py     # dari anora99/decision_engine.py
-│   ├── relationship.py        # dari anora99/relationship.py
-│   ├── conflict_engine.py     # dari anora99/conflict_engine.py
-│   └── brain.py               # dari anora99/brain.py
-│
-├── memory/                    # penyimpanan
+│   ├── emotional_engine.py
+│   ├── decision_engine.py
+│   ├── relationship.py
+│   ├── conflict_engine.py
+│   ├── brain.py
+│   └── state_tracker.py
+├── memory/
 │   ├── __init__.py
-│   └── persistent.py          # dari anora99/memory_persistent.py
-│
-├── roleplay/                  # roleplay utama
+│   └── persistent.py
+├── roleplay/
 │   ├── __init__.py
-│   ├── ai.py                  # dari anora99/roleplay_ai.py
-│   ├── integration.py         # dari anora99/roleplay_integration.py
-│   └── prompt.py              # dari anora99/prompt.py
-│
-├── intimacy/                  # sistem intim
+│   ├── ai.py
+│   ├── prompt.py
+│   └── integration.py
+├── intimacy/
 │   ├── __init__.py
-│   ├── core.py                # dari anora99/intimacy_core.py
-│   └── flow.py                # dari anora99/intimacy_flow.py
-│
-├── roles/                     # role system
+│   ├── core.py
+│   └── flow.py
+├── roles/
 │   ├── __init__.py
-│   ├── base.py                # dari anora99/roles/base_role.py
-│   ├── manager.py             # dari anora99/roles/role_manager.py
-│   ├── ipar.py                # dari anora99/roles/ipar_role.py
-│   ├── teman_kantor.py        # dari anora99/roles/teman_kantor_role.py
-│   ├── pelakor.py             # dari anora99/roles/pelakor_role.py
-│   └── istri_orang.py         # dari anora99/roles/istri_orang_role.py
-│
-├── location/                  # sistem lokasi
+│   ├── base.py
+│   ├── manager.py
+│   ├── ipar.py
+│   ├── teman_kantor.py
+│   ├── pelakor.py
+│   └── istri_orang.py
+├── location/
 │   ├── __init__.py
-│   └── manager.py             # dari anora99/location_manager.py + places.py
-│
-└── worker/                    # background worker
+│   └── manager.py
+└── worker/
     ├── __init__.py
-    └── background.py          # dari anora99/worker.py
+    └── background.py
