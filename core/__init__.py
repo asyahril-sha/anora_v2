@@ -42,7 +42,6 @@ from .brain import (
     Mood,
     Clothing,
     Feelings,
-    TimelineEvent,
     LongTermMemory,
     get_anora_brain,
     anora_brain
@@ -84,7 +83,7 @@ __all__ = [
     'Mood',
     'Clothing',
     'Feelings',
-    'TimelineEvent',
+    'Relationship',
     'LongTermMemory',
     'get_anora_brain',
     'anora_brain',
