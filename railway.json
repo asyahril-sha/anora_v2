@@ -1,19 +1,12 @@
 {
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "pip install -r requirements.txt && python database_migrate.py"
+    "buildCommand": "pip install -r requirements.txt"
   },
   "deploy": {
-    "startCommand": "python main.py",
+    "startCommand": "python -m anora_v2.main",
     "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10,
-    "numReplicas": 1,
-    "sleepApplication": false,
-    "env": {
-      "PYTHONUNBUFFERED": "1",
-      "PYTHONDONTWRITEBYTECODE": "1",
-      "LOG_LEVEL": "INFO"
-    }
+    "restartPolicyMaxRetries": 10
   }
 }
