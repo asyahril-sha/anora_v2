@@ -1,41 +1,49 @@
 anora_v2/
-├── __init__.py
-├── main.py
-├── config.py
-├── requirements.txt
-├── railway.json
-├── .env.example
-├── core/
-│   ├── __init__.py
-│   ├── emotional_engine.py
-│   ├── decision_engine.py
-│   ├── relationship.py
-│   ├── conflict_engine.py
-│   ├── brain.py
-│   └── state_tracker.py
-├── memory/
-│   ├── __init__.py
-│   └── persistent.py
-├── roleplay/
-│   ├── __init__.py
-│   ├── ai.py
-│   ├── prompt.py
-│   └── integration.py
-├── intimacy/
-│   ├── __init__.py
-│   ├── core.py
-│   └── flow.py
-├── roles/
-│   ├── __init__.py
-│   ├── base.py
-│   ├── manager.py
-│   ├── ipar.py
-│   ├── teman_kantor.py
-│   ├── pelakor.py
-│   └── istri_orang.py
-├── location/
-│   ├── __init__.py
-│   └── manager.py
-└── worker/
-    ├── __init__.py
-    └── background.py
+│
+├── 📄 __init__.py                          # Package initializer, version info
+├── 📄 main.py                              # Main entry point (Telegram bot + web server)
+├── 📄 config.py                            # Configuration from environment variables
+├── 📄 requirements.txt                     # Python dependencies
+├── 📄 railway.json                         # Railway deployment config
+├── 📄 .env.example                         # Example environment variables
+│
+├── 📁 core/                                # INTI MESIN ANORA
+│   ├── 📄 __init__.py                      # Core package exports
+│   ├── 📄 emotional_engine.py              # 9 dimensi emosi, 5 gaya bicara
+│   ├── 📄 decision_engine.py               # Weighted selection (NO RANDOM)
+│   ├── 📄 relationship.py                  # 5 fase hubungan + unlock konten
+│   ├── 📄 conflict_engine.py               # Cemburu, kecewa, marah, sakit hati
+│   ├── 📄 brain.py                         # Otak Nova (complete state memory)
+│   └── 📄 state_tracker.py                 # State tracker (konsistensi, tidak ngelantur)
+│
+├── 📁 memory/                              # PENYIMPANAN PERSISTEN
+│   ├── 📄 __init__.py                      # Memory package exports
+│   └── 📄 persistent.py                    # Database SQLite (timeline, memory, state)
+│
+├── 📁 roleplay/                            # ROLEPLAY UTAMA
+│   ├── 📄 __init__.py                      # Roleplay package exports
+│   ├── 📄 ai.py                            # AI integration (DeepSeek API)
+│   ├── 📄 prompt.py                        # Prompt builder untuk AI
+│   └── 📄 integration.py                   # Integrasi semua engine roleplay
+│
+├── 📁 intimacy/                            # SISTEM INTIM
+│   ├── 📄 __init__.py                      # Intimacy package exports
+│   ├── 📄 core.py                          # Stamina, arousal, posisi, moans
+│   └── 📄 flow.py                          # Alur intim (fase, climax, aftercare)
+│
+├── 📁 roles/                               # ROLE SYSTEM
+│   ├── 📄 __init__.py                      # Roles package exports
+│   ├── 📄 base.py                          # Base class semua role (dengan State Tracker)
+│   ├── 📄 manager.py                       # Role manager (switch, chat, load/save)
+│   ├── 📄 ipar.py                          # Tasya Dietha (Dietha) - adik ipar
+│   ├── 📄 teman_kantor.py                  # Musdalifah (Ipeh) - teman kantor
+│   ├── 📄 pelakor.py                       # Widya (Wid) - pelakor
+│   └── 📄 istri_orang.py                   # Siska (Sika) - istri orang
+│
+├── 📁 location/                            # SISTEM LOKASI
+│   ├── 📄 __init__.py                      # Location package exports
+│   └── 📄 manager.py                       # Manajemen lokasi (20+ tempat)
+│
+└── 📁 worker/                              # BACKGROUND WORKER
+    ├── 📄 __init__.py                      # Worker package exports
+    └── 📄 background.py                    # Background tasks (rindu, conflict, backup)
