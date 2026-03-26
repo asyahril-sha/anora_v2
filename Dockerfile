@@ -26,4 +26,4 @@ RUN useradd -m -u 1000 mylove && chown -R mylove:mylove /app
 USER mylove
 
 # Run the bot
-CMD ["python", "-m", "anora_v2.main"]
+CMD ["sh", "-c", "cd /app && python -m anora_v2.main"]
