@@ -11,19 +11,19 @@ RUN apt-get update && apt-get install -y \
     sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first (for better caching)
+# Copy requirements first
 COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Copy the rest of the application (semua file di root)
 COPY . .
 
 # Create non-root user
 RUN useradd -m -u 1000 mylove && chown -R mylove:mylove /app
 USER mylove
 
-# Run the bot
-CMD ["sh", "-c", "cd /app && python -m anora_v2.main"]
+# Run the bot (langsung main.py, bukan anora_v2.main)
+CMD ["python", "main.py"]
