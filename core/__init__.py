@@ -84,7 +84,6 @@ __all__ = [
     'Mood',
     'Clothing',
     'Feelings',
-    'Relationship',
     'TimelineEvent',
     'LongTermMemory',
     'get_anora_brain',
