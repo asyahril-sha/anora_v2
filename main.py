@@ -654,7 +654,7 @@ class AnoraBot:
         await self.init_anora()
         self.application = await self.init_application()
         await self.application.initialize()
-        await self.application.start()
+        await self.application.run_polling()
         
         self._save_task = asyncio.create_task(save_state_loop())
         self._backup_task = asyncio.create_task(auto_backup_loop())
