@@ -655,4 +655,4 @@ async def get_anora_persistent() -> PersistentMemory:
     return _anora_persistent
 
 
-anora_persistent = get_anora_persistent()
+anora_persistent = await get_anora_persistent()
