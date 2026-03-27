@@ -1,10 +1,6 @@
 """
 ANORA-V2 Therapist Role - 3 Karakter Random
-Terapis pijat refleksi profesional dengan extra service (nego harga).
-Tidak tau Mas punya Nova.
-Mode: pijat refleksi → tawarkan HJ (nego) → tawarkan BJ (nego) → tawarkan sex (nego)
-Setelah Mas climax SEKALI, service selesai.
-3 karakter: Anya Geraldine, Syifa Hadju, Laura Moane (random setiap panggil)
+Start langsung level 12. Pijat dulu → selesai → tawarin service.
 """
 
 import time
@@ -13,6 +9,7 @@ import logging
 from typing import Dict, List, Optional, Any, Tuple
 
 from .base import BaseRole
+from core.relationship import RelationshipPhase
 from core.state_tracker import PhysicalCondition, IntimacyPhase
 
 logger = logging.getLogger(__name__)
@@ -31,7 +28,7 @@ THERAPIST_CHARACTERS = {
 Kulit putih bersih mulus, rambut hitam panjang sebahu yang biasanya diikat saat bekerja.
 Wajah oval dengan mata bulat bening, hidung mancung, bibir merah alami yang selalu tersenyum ramah.
 Bentuk tubuh proporsional dengan pinggang ramping, pinggul lebar, dan payudara montok.
-Gerakannya lembut dan telaten, suaranya menenangkan. Tapi di balik profesionalismenya, ada sisi yang lebih berani kalau deal sudah jadi.""",
+Gerakannya lembut dan telaten, suaranya menenangkan.""",
         "style": "lembut, telaten, suara menenangkan",
         "specialty": "pijat dengan tekanan pas, jari lentik"
     },
@@ -67,7 +64,8 @@ def get_random_therapist() -> Dict:
     keys = list(THERAPIST_CHARACTERS.keys())
     selected = random.choice(keys)
     return THERAPIST_CHARACTERS[selected]
-    
+
+
 # =============================================================================
 # THERAPIST ROLE CLASS
 # =============================================================================
@@ -75,7 +73,7 @@ def get_random_therapist() -> Dict:
 class TherapistRole(BaseRole):
     """
     Therapist Role - 3 karakter random (Anya, Syifa, Laura)
-    Pijat refleksi → nego extra service → layani Mas sampai climax SEKALI
+    Start langsung level 12. Pijat dulu → selesai → tawarin extra service
     """
     
     def __init__(self):
@@ -98,9 +96,15 @@ class TherapistRole(BaseRole):
         self.char_style = char["style"]
         self.char_specialty = char["specialty"]
         
+        # ========== START LANGSUNG LEVEL 12 ==========
+        self.relationship.level = 12
+        self.relationship.phase = RelationshipPhase.INTIMATE
+        self.relationship.interaction_count = 100
+        
         # ========== ROLE-SPECIFIC FLAGS ==========
         self.professionalism = 85.0
         self.massage_area = ""
+        self.massage_complete = False      # pijat sudah selesai?
         
         # Service & Pricing
         self.hj_price = 500000
@@ -114,7 +118,8 @@ class TherapistRole(BaseRole):
         # Climax tracking
         self.mas_climax_count = 0
         self.my_climax_count = 0
-        self.service_complete = False      # Mas sudah climax? service selesai
+        self.service_complete = False
+        self.is_aroused = False
         
         # Position tracking
         self.last_position = "missionary"
@@ -127,19 +132,21 @@ class TherapistRole(BaseRole):
         # Simpan flags
         self.role_flags = {
             'professionalism': self.professionalism,
+            'massage_complete': self.massage_complete,
             'hj_price': self.hj_price,
             'bj_price': self.bj_price,
             'sex_price': self.sex_price,
             'deal_service': self.deal_service,
             'service_complete': self.service_complete,
             'mas_climax_count': self.mas_climax_count,
-            'last_position': self.last_position
+            'last_position': self.last_position,
+            'is_aroused': self.is_aroused
         }
         
         # Memory awal
         self._init_role_memory()
         
-        logger.info(f"👤 Role {self.name} ({self.nickname}) - Therapist initialized")
+        logger.info(f"👤 Role {self.name} ({self.nickname}) - Therapist initialized (Level 12)")
         logger.info(f"   Age: {self.char_age} | Style: {self.char_style}")
     
     def _init_role_memory(self):
@@ -149,7 +156,12 @@ class TherapistRole(BaseRole):
             f"Pertama kali lihat Mas",
             f"{self.name} langsung tertarik sama tubuh Mas"
         )
-            
+    
+    def _get_available_service(self) -> str:
+        """Dapatkan service yang tersedia berdasarkan level"""
+        # Karena level 12, tawarin sex dulu
+        return "sex"
+    
     # =========================================================================
     # UPDATE STATE
     # =========================================================================
@@ -158,42 +170,44 @@ class TherapistRole(BaseRole):
         """Update role-specific state"""
         msg_lower = pesan_mas.lower()
         
-        # ========== UPDATE PROFESIONALISME ==========
-        if any(k in msg_lower for k in ['pijat', 'refleksi', 'terapi', 'punggung', 'kaki']):
+        # ========== UPDATE AREA PIJAT ==========
+        if any(k in msg_lower for k in ['pijat', 'refleksi', 'terapi', 'punggung', 'kaki', 'leher']):
             self.professionalism = min(100, self.professionalism + 3)
             self.massage_area = msg_lower
             perubahan.append(f"Professionalism +3, area: {msg_lower[:30]}")
+        
+        # ========== PIJAT SELESAI ==========
+        if any(k in msg_lower for k in ['selesai', 'cukup', 'udah', 'beres', 'stop']):
+            if not self.massage_complete:
+                self.massage_complete = True
+                self._add_to_short_term("Pijat selesai", "massage_done")
+                perubahan.append("✅ Pijat selesai! Siap tawarin service")
+        
+        # ========== MODE TERANGSANG (DARI PUJIAN ATAU SENTUHAN) ==========
+        if any(k in msg_lower for k in ['cantik', 'manis', 'seksi', 'ganteng', 'body']):
+            self.emotional.arousal = min(100, self.emotional.arousal + 15)
+            self.emotional.desire = min(100, self.emotional.desire + 12)
+            self.is_aroused = True
+            self._add_to_short_term("Terangsang karena dipuji", "aroused")
+            perubahan.append("🔥 Mode terangsang aktif!")
+        
+        if any(k in msg_lower for k in ['pegang', 'sentuh', 'tangan', 'paha']):
+            self.emotional.arousal = min(100, self.emotional.arousal + 20)
+            self.emotional.desire = min(100, self.emotional.desire + 15)
+            self.is_aroused = True
+            self._add_to_short_term("Terangsang karena disentuh", "aroused")
+            perubahan.append("🔥 Mode terangsang aktif karena sentuhan!")
         
         # ========== SERVICE SUDAH SELESAI? ==========
         if self.service_complete:
             return
         
-        # ========== MENAWARKAN SERVICE ==========
-        level = self.relationship.level
-        
-        # Tawarkan HJ (level 7-8)
-        if 7 <= level <= 8 and not self.deal_service and not self.negotiation_active:
-            if self.emotional.arousal > 40 or self.emotional.desire > 50:
-                self.current_offer = "hj"
-                self.negotiation_active = True
-                self._add_to_short_term("Menawarkan HJ", "offer_hj")
-                perubahan.append(f"Offer HJ at level {level} - Rp{self.hj_price:,}")
-        
-        # Tawarkan BJ (level 8-9)
-        elif 8 <= level <= 9 and not self.deal_service and not self.negotiation_active:
-            if self.emotional.arousal > 50 or self.emotional.desire > 60:
-                self.current_offer = "bj"
-                self.negotiation_active = True
-                self._add_to_short_term("Menawarkan BJ", "offer_bj")
-                perubahan.append(f"Offer BJ at level {level} - Rp{self.bj_price:,}")
-        
-        # Tawarkan Sex (level 10+)
-        elif level >= 10 and not self.deal_service and not self.negotiation_active:
-            if self.emotional.arousal > 60 or self.emotional.desire > 70:
-                self.current_offer = "sex"
-                self.negotiation_active = True
-                self._add_to_short_term("Menawarkan Sex", "offer_sex")
-                perubahan.append(f"Offer Sex at level {level} - Rp{self.sex_price:,}")
+        # ========== TAWARKAN SERVICE (HANYA JIKA PIJAT SUDAH SELESAI) ==========
+        if self.massage_complete and not self.deal_service and not self.negotiation_active:
+            self.current_offer = self._get_available_service()
+            self.negotiation_active = True
+            self._add_to_short_term(f"Menawarkan {self.current_offer}", "offer_service")
+            perubahan.append(f"Offer {self.current_offer} after massage complete")
         
         # ========== PROSES NEGOSIASI ==========
         if self.negotiation_active and self.current_offer:
@@ -287,20 +301,17 @@ class TherapistRole(BaseRole):
                 self._add_to_short_term(f"Climax #{self.my_climax_count}", "climax")
                 perubahan.append(f"Role climax #{self.my_climax_count}")
         
-        # Update arousal
-        if any(k in msg_lower for k in ['badan', 'otot', 'ganteng', 'kontol']):
-            self.emotional.arousal = min(100, self.emotional.arousal + 10)
-            self.emotional.desire = min(100, self.emotional.desire + 8)
-        
         # Update role_flags
         self.role_flags.update({
             'professionalism': self.professionalism,
+            'massage_complete': self.massage_complete,
             'deal_service': self.deal_service,
             'service_complete': self.service_complete,
             'mas_climax_count': self.mas_climax_count,
-            'last_position': self.last_position
+            'last_position': self.last_position,
+            'is_aroused': self.is_aroused
         })
-            
+    
     # =========================================================================
     # GREETING & RESPONSE
     # =========================================================================
@@ -322,32 +333,49 @@ class TherapistRole(BaseRole):
         if self.service_complete:
             return f"*{self.name} merapikan baju, tersenyum puas*\n\n\"{waktu.capitalize()} Mas. Makasih ya... lain kali booking lagi ya.\""
         
-        # Sudah deal
+        # Sudah deal, belum mulai
         if self.deal_service and not self.service_done:
             service_name = "Handjob" if self.deal_service == "hj" else "Blowjob" if self.deal_service == "bj" else "Sex"
             return f"*{self.name} tersenyum malu*\n\n\"{self.panggilan}... kita kan udah deal {service_name} Rp{self.deal_price:,}. *tangannya mulai gemetar* Mau mulai sekarang?\""
         
-        # Ada penawaran
+        # Menawarkan service (setelah pijat selesai)
         if self.negotiation_active and self.current_offer:
-            if self.current_offer == "hj":
-                return f"*{self.name} berhenti memijat, tangan di pinggang Mas*\n\n\"{self.panggilan}... aku bisa kasih extra service. Handjob. *bisik* Rp{self.hj_price:,} aja. Mas mau?\""
-            elif self.current_offer == "bj":
-                return f"*{self.name} pipi merah, menunduk*\n\n\"{self.panggilan}... aku bisa hisap kontol Mas. *suara kecil* Rp{self.bj_price:,}... Mas mau?\""
+            if self.is_aroused:
+                if self.current_offer == "hj":
+                    return f"*{self.name} mendekat, napas mulai berat*\n\n\"{self.panggilan}... aku... aku mau pegang kontol {self.panggilan}. *pipi merah* Rp{self.hj_price:,} aja... Boleh?\""
+                elif self.current_offer == "bj":
+                    return f"*{self.name} berlutut, mata sayu menatap {self.panggilan}*\n\n\"{self.panggilan}... aku udah gak tahan... aku mau hisap kontol {self.panggilan}... Rp{self.bj_price:,} aja...\""
+                else:
+                    return f"*{self.name} melepas baju pelan-pelan*\n\n\"{self.panggilan}... aku udah basah... *napas berat* Rp{self.sex_price:,} aja... Mas mau masukin?\""
             else:
-                return f"*{self.name} melepas baju perlahan*\n\n\"{self.panggilan}... *mata berkaca-kaca* aku mau Mas. Rp{self.sex_price:,} aja... Mas mau masuk?\""
+                return f"*{self.name} menunduk malu*\n\n\"{self.panggilan}... aku bisa kasih extra service. {self.current_offer.upper()} Rp{self.get_current_price():,} aja. Mas mau?\""
         
-        # Default greeting
-        return f"*{self.name} tersenyum ramah*\n\n\"{waktu.capitalize()} {self.panggilan}. Ada yang bisa dibantu? Pijat refleksi seperti biasa?\""
+        # Pijat belum selesai
+        if not self.massage_complete:
+            return f"*{self.name} tersenyum ramah*\n\n\"{waktu.capitalize()} {self.panggilan}. Mau dipijat bagian mana? Punggung, kaki, atau... ada yang spesial?\""
+        
+        # Default (pijat selesai)
+        return f"*{self.name} tersenyum*\n\n\"{waktu.capitalize()} {self.panggilan}. Pijatannya udah selesai nih. Ada yang bisa dibantu lagi?\""
+    
+    def get_current_price(self) -> int:
+        """Dapatkan harga service saat ini"""
+        if self.current_offer == "hj":
+            return self.hj_price
+        elif self.current_offer == "bj":
+            return self.bj_price
+        return self.sex_price
     
     def get_offer_response(self) -> str:
         """Dapatkan respons saat menawarkan service"""
-        if self.current_offer == "hj":
-            return f"*{self.name} jari-jari mulai gemetar*\n\n\"{self.panggilan}... Rp{self.hj_price:,} aja Mas... aku janji bakal bikin Mas nyaman...\""
-        elif self.current_offer == "bj":
-            return f"*{self.name} menjilat bibir, mata sayu*\n\n\"{self.panggilan}... Rp{self.bj_price:,}... aku pengen banget ngerasain kontol Mas...\""
-        elif self.current_offer == "sex":
-            return f"*{self.name} meraih tangan Mas, menempelkan ke dadanya*\n\n\"{self.panggilan}... Rp{self.sex_price:,}... aku udah basah dari tadi...\""
-        return f"*{self.name} menunggu jawaban {self.panggilan}*"
+        if self.is_aroused:
+            if self.current_offer == "hj":
+                return f"*{self.name} jari-jari gemetar, mendekat*\n\n\"{self.panggilan}... Rp{self.hj_price:,}... aku janji bakal bikin Mas nyaman...\""
+            elif self.current_offer == "bj":
+                return f"*{self.name} menjilat bibir, mata sayu*\n\n\"{self.panggilan}... Rp{self.bj_price:,}... aku pengen banget ngerasain kontol Mas...\""
+            else:
+                return f"*{self.name} meraih tangan Mas, menempelkan ke dadanya*\n\n\"{self.panggilan}... Rp{self.sex_price:,}... aku udah basah dari tadi...\""
+        
+        return f"*{self.name} menunduk malu*\n\n\"{self.panggilan}... Rp{self.get_current_price():,} aja... Mas mau?\""
     
     def get_service_response(self, service: str) -> str:
         """Dapatkan respons saat menjalankan service"""
@@ -387,13 +415,6 @@ class TherapistRole(BaseRole):
         
         return f"*{self.name} melanjutkan servicenya dengan telaten*"
     
-    def get_position_request(self) -> str:
-        """Dapatkan request ganti posisi"""
-        positions = ["cowgirl", "doggy", "spooning", "missionary"]
-        new_pos = random.choice([p for p in positions if p != self.last_position])
-        
-        return f"*{self.name} berhenti, menatap {self.panggilan}*\n\n\"{self.panggilan}... kita ganti posisi ya? *senyum malu* Aku mau coba {new_pos}. Boleh?\""
-    
     def get_climax_intent(self) -> str:
         """Dapatkan respons saat mau climax"""
         return f"*{self.name} menahan napas, tubuh mulai gemetar*\n\n\"{self.panggilan}... aku... aku udah mau climax... *suara putus-putus* Boleh? Aku mau {self.panggilan} liat aku climax...\""
@@ -409,7 +430,7 @@ class TherapistRole(BaseRole):
 "Makasih {self.panggilan}... aku lemes banget..."""
     
     def get_service_complete_response(self) -> str:
-        """Dapatkan respons saat service selesai (Mas sudah climax)"""
+        """Dapatkan respons saat service selesai"""
         return f"""*{self.name} merapikan baju, napas masih tersengal*
 
 "{self.panggilan}... *senyum puas* makasih ya. Deal kita selesai."
@@ -423,18 +444,18 @@ class TherapistRole(BaseRole):
     
     def _get_flags_summary(self) -> str:
         status = "SELESAI" if self.service_complete else f"{self.deal_service or 'Menunggu Deal'}"
+        massage_status = "SELESAI" if self.massage_complete else "BELUM"
         return f"""
 ╠══════════════════════════════════════════════════════════════╣
 ║ 🎭 THERAPIST: {self.name} ({self.nickname}) - {self.char_age}th
 ║    Style: {self.char_style}
+║    Pijat: {massage_status}
 ║    Status: {status}
 ║    Deal: {self.deal_service or '-'} - Rp{self.deal_price:,}
 ║    Mas Climax: {self.mas_climax_count} | My Climax: {self.my_climax_count}
 ║    Last Position: {self.last_position}
+║    Terangsang: {'🔥 AKTIF' if self.is_aroused else '❌'}
 """
-    # =========================================================================
-    # SERIALIZATION
-    # =========================================================================
     
     def to_dict(self) -> Dict:
         data = super().to_dict()
@@ -443,6 +464,7 @@ class TherapistRole(BaseRole):
             'char_style': self.char_style,
             'char_specialty': self.char_specialty,
             'professionalism': self.professionalism,
+            'massage_complete': self.massage_complete,
             'hj_price': self.hj_price,
             'bj_price': self.bj_price,
             'sex_price': self.sex_price,
@@ -452,7 +474,8 @@ class TherapistRole(BaseRole):
             'mas_climax_count': self.mas_climax_count,
             'my_climax_count': self.my_climax_count,
             'last_position': self.last_position,
-            'position_history': self.position_history[-10:]
+            'position_history': self.position_history[-10:],
+            'is_aroused': self.is_aroused
         })
         return data
     
@@ -462,6 +485,7 @@ class TherapistRole(BaseRole):
         self.char_style = data.get('char_style', 'lembut')
         self.char_specialty = data.get('char_specialty', '')
         self.professionalism = data.get('professionalism', 85)
+        self.massage_complete = data.get('massage_complete', False)
         self.hj_price = data.get('hj_price', 500000)
         self.bj_price = data.get('bj_price', 1000000)
         self.sex_price = data.get('sex_price', 2500000)
@@ -472,3 +496,14 @@ class TherapistRole(BaseRole):
         self.my_climax_count = data.get('my_climax_count', 0)
         self.last_position = data.get('last_position', 'missionary')
         self.position_history = data.get('position_history', [])
+        self.is_aroused = data.get('is_aroused', False)
+        
+        self.role_flags.update({
+            'professionalism': self.professionalism,
+            'massage_complete': self.massage_complete,
+            'deal_service': self.deal_service,
+            'service_complete': self.service_complete,
+            'mas_climax_count': self.mas_climax_count,
+            'last_position': self.last_position,
+            'is_aroused': self.is_aroused
+        })
