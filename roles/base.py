@@ -602,6 +602,10 @@ RESPON {self.name}:
                 return self.tracker.get_clothing_summary()
         except:
             pass
+
+        # Pastikan self.clothing adalah dictionary
+        if not isinstance(self.clothing, dict):
+            return "pakaian tidak diketahui"
     
         parts = []
         if self.clothing.get('hijab', False):
