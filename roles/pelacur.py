@@ -303,6 +303,14 @@ class PelacurRole(BaseRole):
             waktu = "sore"
         else:
             waktu = "malam"
+
+         # 🔥 RESPON BOOKING OTOMATIS 🔥
+        if hasattr(self, 'pending_booking_response') and self.pending_booking_response:
+            self.pending_booking_response = False
+            if self.booking_location == "apartemen Mas":
+                return f"*{self.name} tersenyum manis, matanya berbinar*\n\n\"Deal Mas! {self.booking_location}. 10jt. Aku langsung ke sana ya. Tunggu aku ya...\""
+            else:
+                return f"*{self.name} tersenyum, merapikan dress*\n\n\"Deal Mas! {self.booking_location}. 10jt. Aku tunggu di sana ya.\""
         
         # Sedang break (ngobrol santai)
         if self.is_break:
