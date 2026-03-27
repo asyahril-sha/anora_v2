@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Any, Tuple
 
 from .base import BaseRole
 from core.relationship import RelationshipPhase
-from core.state_tracker import PhysicalCondition, # anora/roles/therapist.py
+from core.state_tracker import PhysicalCondition
 """
 ANORA Ultimate - Therapist Role
 3 Karakter Random: Anya Geraldine, Syifa Hadju, Laura Moane
