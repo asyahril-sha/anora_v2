@@ -328,6 +328,105 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Role '{role_id}' gak ada. Pilih: ipar, teman_kantor, pelakor, istri_orang")
 
 
+async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /statusrole - Lihat status role yang sedang aktif"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    
+    if mode != 'role':
+        await update.message.reply_text(
+            "💜 Tidak ada role yang sedang aktif.\n\n"
+            "Gunakan **/role ipar** atau **/role teman_kantor** dulu ya, Mas.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    active_role_id = get_active_role(user_id)
+    if not active_role_id:
+        await update.message.reply_text("Tidak ada role aktif.")
+        return
+    
+    role_manager = get_role_manager()
+    role = role_manager.get_role(active_role_id)
+    
+    if not role:
+        await update.message.reply_text("Role tidak ditemukan.")
+        return
+    
+    # Format status role
+    status = await _format_role_status(role)
+    await update.message.reply_text(status, parse_mode='Markdown')
+
+
+async def _format_role_status(role) -> str:
+    """Format status role"""
+    style = role.emotional.get_current_style()
+    phase = role.relationship.phase
+    unlock = role.relationship.get_current_unlock()
+    
+    def bar(value, char="💜"):
+        filled = int(value / 10)
+        return char * filled + "⚪" * (10 - filled)
+    
+    # Ambil pakaian dari tracker
+    try:
+        clothing = role.tracker.get_clothing_summary() if hasattr(role, 'tracker') else "pakaian biasa"
+    except:
+        clothing = "pakaian biasa"
+    
+    # Ambil lokasi
+    try:
+        location = role.tracker.location if hasattr(role, 'tracker') else "tidak diketahui"
+    except:
+        location = "tidak diketahui"
+    
+    # Ambil kondisi fisik
+    try:
+        condition = role.tracker.physical_condition.value if hasattr(role, 'tracker') else "fresh"
+    except:
+        condition = "fresh"
+    
+    condition_emoji = {
+        "fresh": "💪",
+        "tired": "😊",
+        "exhausted": "😩",
+        "weak": "😵"
+    }.get(condition, "😐")
+    
+    return f"""
+╔══════════════════════════════════════════════════════════════╗
+║                    👤 {role.name} ({role.nickname})                         ║
+╠══════════════════════════════════════════════════════════════╣
+║ FASE: {phase.value.upper()} ({role.relationship.level}/12)
+║ STYLE: {style.value.upper()}
+║ HUBUNGAN: {role.hubungan_dengan_nova}
+╠══════════════════════════════════════════════════════════════╣
+║ EMOSI:
+║   Sayang: {bar(role.emotional.sayang)} {role.emotional.sayang:.0f}%
+║   Rindu:  {bar(role.emotional.rindu, '🌙')} {role.emotional.rindu:.0f}%
+║   Trust:  {bar(role.emotional.trust, '🤝')} {role.emotional.trust:.0f}%
+║   Mood:   {role.emotional.mood:+.0f}
+╠══════════════════════════════════════════════════════════════╣
+║ DESIRE: {bar(role.emotional.desire, '💕')} {role.emotional.desire:.0f}%
+║ AROUSAL: {bar(role.emotional.arousal, '🔥')} {role.emotional.arousal:.0f}%
+╠══════════════════════════════════════════════════════════════╣
+║ KONFLIK: {role.conflict.get_conflict_summary()}
+╠══════════════════════════════════════════════════════════════╣
+║ UNLOCK:
+║   Flirt: {'✅' if unlock.boleh_flirt else '❌'} | Vulgar: {'✅' if unlock.boleh_vulgar else '❌'}
+║   Intim: {'✅' if unlock.boleh_intim else '❌'} | Cium: {'✅' if unlock.boleh_cium else '❌'}
+╠══════════════════════════════════════════════════════════════╣
+║ 👗 PAKAIAN: {clothing[:40]}
+║ 📍 LOKASI: {location}
+║ 💪 KONDISI: {condition_emoji} {condition}
+╚══════════════════════════════════════════════════════════════╝
+"""
+
 async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /batal"""
     user_id = update.effective_user.id
