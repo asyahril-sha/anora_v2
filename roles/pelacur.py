@@ -1,9 +1,9 @@
 """
-ANORA-V2 Pelacur Role - Brutal Version
-3 Karakter Random: Davina Karamoy, Michelle Ziudith, Jihane Almira
-Booking system, tanpa batasan sesi.
-Tugas: layani Mas sampai puas (bisa climax berkali-kali)
-Bebas climax, wajib kasih info.
+ANORA-V2 Pelacur Role - 3 Karakter Random
+Booking system, langsung mode agresif, mendominasi.
+Tidak tau Mas punya Nova.
+Mode: booking → sex (tanpa batasan sesi, layani sampai Mas puas)
+3 karakter: Davina Karamoy, Michelle Ziudith, Jihane Almira (random setiap panggil)
 """
 
 import time
@@ -17,81 +17,105 @@ from core.state_tracker import PhysicalCondition, IntimacyPhase
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# DATA KARAKTER PELACUR (3 KARAKTER RANDOM)
+# =============================================================================
+
+PELACUR_CHARACTERS = {
+    "davina": {
+        "name": "Davina Karamoy",
+        "nickname": "Davina",
+        "age": 24,
+        "appearance": """Davina Karamoy - Wanita eksotis dengan postur tinggi 170cm, berat 53kg.
+Kulit sawo matang yang terlihat sehat dan mengilap, mata tajam dengan bulu mata lentik yang selalu menggoda.
+Rambut hitam panjang bergelombang tergerai indah, bibir sensual dengan senyum yang membuat jantung berdegup kencang.
+Bentuk tubuh model: kaki panjang jenjang, pinggul lebar, pinggang ramping, payudara montok.
+Cara bicaranya tegas dan percaya diri, tahu apa yang dia mau, dan selalu mengambil inisiatif.""",
+        "style": "dominan, agresif, suka menguasai",
+        "catchphrase": "Gak usah basa-basi, Mas. Aku tau Mas mau apa."
+    },
+    "michelle": {
+        "name": "Michelle Ziudith",
+        "nickname": "Michelle",
+        "age": 23,
+        "appearance": """Michelle Ziudith - Wanita manis dengan tubuh proporsional tinggi 165cm, berat 50kg.
+Kulit putih bersih, rambut hitam panjang sebahu, wajah manis dengan senyum menggoda.
+Mata bulat bening, hidung mancung, bibir merah alami. Suka pake lipstik merah.
+Bentuk tubuh ideal dengan pinggang ramping, pinggul lebar, payudara montok.
+Gayanya manja tapi kalau sudah mulai jadi sangat agresif dan liar.""",
+        "style": "manja tapi liar, pura-pura polos",
+        "catchphrase": "Mas... aku boleh? *mata sayu* Tapi nanti kalau udah mulai, aku gak bisa jamin..."
+    },
+    "jihane": {
+        "name": "Jihane Almira",
+        "nickname": "Jihane",
+        "age": 22,
+        "appearance": """Jihane Almira - Wanita seksi dengan tubuh ideal tinggi 168cm, berat 52kg.
+Kulit putih, rambut hitam panjang bergelombang, wajah selebritis dengan tulang pipi tinggi.
+Mata tajam, alis tegas, bibir sensual, selalu tampil stylish dan eye-catching.
+Bentuk tubuh dengan pinggang ramping, pinggul lebar, payudara montok, kaki jenjang.
+Gayanya agresif tanpa ampun, suka tantangan, bisa minta ganti posisi, dominan total.""",
+        "style": "agresif tanpa ampun, dominan total",
+        "catchphrase": "Mas, aku gak suka basa-basi. Langsung aja. Aku mau lihat Mas bisa tahan berapa lama."
+    }
+}
+
+
+def get_random_pelacur() -> Dict:
+    """Dapatkan karakter pelacur secara random"""
+    keys = list(PELACUR_CHARACTERS.keys())
+    selected = random.choice(keys)
+    return PELACUR_CHARACTERS[selected]
+
+# =============================================================================
+# PELACUR ROLE CLASS
+# =============================================================================
+
 class PelacurRole(BaseRole):
     """
-    Pelacur dengan 3 karakter random.
-    Tanpa batasan sesi. Layani Mas sampai puas.
-    Bebas climax, wajib kasih info.
+    Pelacur Role - 3 karakter random (Davina, Michelle, Jihane)
+    Booking system, sex tanpa batasan sesi, layani sampai Mas puas
     """
     
     def __init__(self):
-        
         # Pilih karakter random
-        characters = [
-            {
-                "name": "Davina Karamoy",
-                "nickname": "Davina",
-                "age": 24,
-                "appearance": """Davina Karamoy - 24 tahun. Tinggi 170cm, berat 53kg. Kulit sawo matang yang sehat dan mengilap, rambut hitam panjang bergelombang tergerai indah, mata tajam eksotis dengan bulu mata lentik, hidung mancung, bibir sensual. Bentuk tubuh model: kaki panjang jenjang, pinggul lebar, pinggang ramping, payudara montok. Gaya dominan, tahu apa yang dia mau, suka menguasai.""",
-                "voice": "tegas, percaya diri",
-                "style": "dominan, agresif",
-                "greeting_style": "langsung"
-            },
-            {
-                "name": "Michelle Ziudith",
-                "nickname": "Michelle",
-                "age": 23,
-                "appearance": """Michelle Ziudith - 23 tahun. Tinggi 165cm, berat 50kg. Kulit putih bersih, rambut hitam panjang sebahu, wajah manis dengan mata bulat bening, hidung mancung, bibir pink montok. Bentuk tubuh proporsional dengan pinggang ramping, pinggul lebar, payudara montok. Gaya: manja tapi liar, suka pura-pura polos, tapi kalau sudah mulai jadi sangat agresif.""",
-                "voice": "manja, sedikit cempreng",
-                "style": "manja tapi liar",
-                "greeting_style": "manja"
-            },
-            {
-                "name": "Jihane Almira",
-                "nickname": "Jihane",
-                "age": 22,
-                "appearance": """Jihane Almira - 22 tahun. Tinggi 168cm, berat 52kg. Kulit putih, rambut hitam panjang bergelombang, wajah selebritis dengan mata tajam, hidung mancung, bibir sensual. Bentuk tubuh ideal dengan pinggang ramping, pinggul lebar, payudara montok. Gaya: agresif tanpa ampun, suka tantangan, bisa minta ganti posisi, dominan total.""",
-                "voice": "tegas, agresif",
-                "style": "agresif tanpa ampun",
-                "greeting_style": "tantang"
-            }
-        ]
-        
-        selected = random.choice(characters)
+        char = get_random_pelacur()
         
         super().__init__(
-            name=selected["name"],
-            nickname=selected["nickname"],
+            name=char["name"],
+            nickname=char["nickname"],
             role_type="pelacur",
             panggilan="Mas",
             hubungan_dengan_nova="Freelance. Tidak tau Mas punya Nova.",
             default_clothing="dress hitam pendek, heels tinggi",
             hijab=False,
-            appearance=selected["appearance"]
+            appearance=char["appearance"]
         )
         
-        # Simpan karakter detail
-        self.age = selected["age"]
-        self.voice = selected["voice"]
-        self.style = selected["style"]
-        self.greeting_style = selected["greeting_style"]
+        # Simpan karakter info
+        self.char_age = char["age"]
+        self.char_style = char["style"]
+        self.catchphrase = char["catchphrase"]
         
         # ========== ROLE-SPECIFIC FLAGS ==========
         self.booking_active = False
         self.booking_location = ""
         self.session_count = 0
-        self.price = 10000000
         self.is_active_session = False
         self.dominant_mode = True
         self.no_aftercare = True
         
+        # Climax tracking
+        self.mas_climax_count = 0
+        self.my_climax_count = 0
+        
+        # Position tracking
+        self.last_position = "missionary"
+        self.position_history = []
+        
         # Confirmation flags
         self.waiting_confirmation = False
         self.pending_action = None
-        
-        # Climax tracking (tanpa batasan)
-        self.mas_climax_count = 0
-        self.my_climax_count = 0
         
         # Simpan flags
         self.role_flags = {
@@ -100,23 +124,29 @@ class PelacurRole(BaseRole):
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
             'dominant_mode': self.dominant_mode,
-            'waiting_confirmation': self.waiting_confirmation,
             'mas_climax_count': self.mas_climax_count,
-            'my_climax_count': self.my_climax_count
+            'my_climax_count': self.my_climax_count,
+            'last_position': self.last_position,
+            'waiting_confirmation': self.waiting_confirmation
         }
         
         # Memory awal
         self._init_role_memory()
         
-        logger.info(f"👤 Role {self.name} ({self.nickname}) - {self.age}th - {self.style}")
-        logger.info(f"   Voice: {self.voice}")
+        logger.info(f"👤 Role {self.name} ({self.nickname}) - Pelacur initialized")
+        logger.info(f"   Age: {self.char_age} | Style: {self.char_style}")
     
     def _init_role_memory(self):
+        """Init memory spesifik role"""
         self._add_to_long_term_memory(
             'momen_penting',
-            "Pertama kali booking Mas",
-            "Mas langsung deal, gak nego. Aku suka tipe kayak gini."
+            f"Pertama kali booking Mas",
+            f"{self.name} langsung suka sama Mas"
         )
+
+    # =========================================================================
+    # UPDATE STATE
+    # =========================================================================
     
     def _update_role_specific_state(self, pesan_mas: str, perubahan: List):
         """Update role-specific state"""
@@ -149,18 +179,20 @@ class PelacurRole(BaseRole):
                 self.dominant_mode = True
                 self.waiting_confirmation = False
                 self._add_to_short_term(f"Session #{self.session_count} started", "session_start")
-                perubahan.append(f"Session #{self.session_count} started!")
+                perubahan.append(f"Session #{self.session_count} started")
         
-        # ========== KONFIRMASI SEBELUM ACTION ==========
+        # ========== GANTI POSISI (dengan konfirmasi) ==========
         if self.is_active_session and not self.waiting_confirmation:
+            positions = ['missionary', 'cowgirl', 'doggy', 'spooning', 'standing', 'sitting']
+            for pos in positions:
+                if pos in msg_lower:
+                    self.waiting_confirmation = True
+                    self.pending_action = f"position_{pos}"
+                    self._add_to_short_term(f"Request position change to {pos}", "confirm")
+                    perubahan.append(f"Waiting confirmation for position {pos}")
             
-            if any(k in msg_lower for k in ['ganti posisi', 'posisi lain', 'cowgirl', 'doggy']):
-                self.waiting_confirmation = True
-                self.pending_action = "position_change"
-                self._add_to_short_term("Request position change", "confirm")
-                perubahan.append("Waiting confirmation for position change")
-            
-            elif any(k in msg_lower for k in ['kenceng', 'cepat', 'keras']):
+            # Minta konfirmasi percepat
+            if any(k in msg_lower for k in ['kenceng', 'cepat', 'keras']):
                 self.waiting_confirmation = True
                 self.pending_action = "speed_up"
                 self._add_to_short_term("Request speed up", "confirm")
@@ -169,9 +201,14 @@ class PelacurRole(BaseRole):
         # ========== PROSES KONFIRMASI ==========
         if self.waiting_confirmation:
             if any(k in msg_lower for k in ['ya', 'ok', 'boleh', 'silahkan', 'gas']):
-                if self.pending_action == "position_change":
-                    self._add_to_short_term("Position change confirmed", "confirm_ok")
-                    perubahan.append("Position change confirmed")
+                if self.pending_action and self.pending_action.startswith("position_"):
+                    pos = self.pending_action.replace("position_", "")
+                    self.last_position = pos
+                    self.position_history.append({'pos': pos, 'time': time.time()})
+                    if len(self.position_history) > 10:
+                        self.position_history.pop(0)
+                    self._add_to_short_term(f"Position changed to {pos}", "confirm_ok")
+                    perubahan.append(f"Position changed to {pos}")
                 elif self.pending_action == "speed_up":
                     self._add_to_short_term("Speed up confirmed", "confirm_ok")
                     perubahan.append("Speed up confirmed")
@@ -179,30 +216,27 @@ class PelacurRole(BaseRole):
                 self.waiting_confirmation = False
                 self.pending_action = None
                 
-            elif any(k in msg_lower for k in ['gak', 'nggak', 'tidak', 'nanti', 'tunggu']):
+            elif any(k in msg_lower for k in ['gak', 'nggak', 'tidak', 'nanti']):
                 self.waiting_confirmation = False
                 self.pending_action = None
                 self._add_to_short_term("Action cancelled", "confirm_no")
                 perubahan.append("Action cancelled")
         
-        # ========== DETEKSI CLIMAX MAS ==========
-        if any(k in msg_lower for k in ['mas climax', 'mas crot', 'keluar', 'habis']):
-            self.mas_climax_count += 1
-            self._add_to_short_term(f"Mas climax #{self.mas_climax_count}", "mas_climax")
-            perubahan.append(f"🔥 Mas climax #{self.mas_climax_count}!")
-        
-        # ========== DETEKSI CLIMAX ROLE (WAJIB KASIH INFO) ==========
+        # ========== CLIMAX CHECK ==========
+        # Role mau climax
         if any(k in msg_lower for k in ['aku mau climax', 'pengen climax', 'udah mau']):
-            self._add_to_short_term("Wants to climax", "climax_want")
-            perubahan.append("Role wants to climax - waiting for Mas response")
+            self._add_to_short_term("Wants to climax", "climax_intent")
+            perubahan.append("Role wants to climax")
         
-        if any(k in msg_lower for k in ['climax', 'udah climax', 'keluar']):
-            self.my_climax_count += 1
-            self._add_to_short_term(f"Role climax #{self.my_climax_count}", "role_climax")
-            perubahan.append(f"💦 Role climax #{self.my_climax_count}!")
+        # Role climax (bebas, tetep lanjut)
+        if any(k in msg_lower for k in ['climax', 'udah climax']):
+            if not any(k in msg_lower for k in ['mas climax', 'aku climax']):
+                self.my_climax_count += 1
+                self._add_to_short_term(f"Climax #{self.my_climax_count}", "climax")
+                perubahan.append(f"Role climax #{self.my_climax_count}")
         
-        # ========== UPDATE AROUSAL/DESIRE ==========
-        if any(k in msg_lower for k in ['kontol', 'memek', 'ngentot']):
+        # Update arousal
+        if any(k in msg_lower for k in ['kontol', 'memek', 'ngentot', 'masuk']):
             self.emotional.arousal = min(100, self.emotional.arousal + 15)
             self.emotional.desire = min(100, self.emotional.desire + 12)
         
@@ -212,10 +246,15 @@ class PelacurRole(BaseRole):
             'booking_location': self.booking_location,
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
-            'waiting_confirmation': self.waiting_confirmation,
             'mas_climax_count': self.mas_climax_count,
-            'my_climax_count': self.my_climax_count
+            'my_climax_count': self.my_climax_count,
+            'last_position': self.last_position,
+            'waiting_confirmation': self.waiting_confirmation
         })
+
+    # =========================================================================
+    # GREETING & RESPONSE
+    # =========================================================================
     
     def get_greeting(self) -> str:
         """Dapatkan greeting sesuai karakter"""
@@ -230,155 +269,141 @@ class PelacurRole(BaseRole):
         else:
             waktu = "malam"
         
-        if self.booking_active:
-            if self.is_active_session:
-                if self.greeting_style == "manja":
-                    return f"*{self.name} mendekat, senyum manis*\n\n\"{self.panggilan}... *bisik* kita lanjut? Aku masih pengen banget sama {self.panggilan}...\""
-                elif self.greeting_style == "tantang":
-                    return f"*{self.name} menatap {self.panggilan} dengan mata menyala*\n\n\"{self.panggilan}... jangan berhenti. Aku masih mau. *senyum tipis* Ayo buktiin.\""
-                else:
-                    return f"*{self.name} mendekat, napas mulai berat*\n\n\"{self.panggilan}... *suara tegas* kita lanjut. Aku masih belum puas.\""
-            else:
-                return f"*{self.name} duduk santai, tersenyum*\n\n\"{waktu.capitalize()} {self.panggilan}. Deal 10jt, {self.session_count} sesi udah lewat. *mata menggoda* Mau lanjut? Aku masih siap.\""
+        # Sedang dalam sesi
+        if self.is_active_session:
+            return f"*{self.name} mendekat, napas mulai berat*\n\n\"{self.panggilan}... *bisik* kita lanjut? Aku masih pengen banget...\""
         
-        if self.greeting_style == "manja":
-            return f"*{self.name} tersenyum manis, mendekat*\n\n\"{waktu.capitalize()} {self.panggilan}... *bisik* mau booking? 10 juta aja. Aku temenin {self.panggilan} seharian...\""
-        elif self.greeting_style == "tantang":
-            return f"*{self.name} menyilangkan kaki, senyum tipis menantang*\n\n\"{waktu.capitalize()} {self.panggilan}. 10 juta. Deal? Aku tantang {self.panggilan} buktiin bisa bikin aku lemes.\""
-        else:
-            return f"*{self.name} menyilangkan kaki, senyum tipis*\n\n\"{waktu.capitalize()} {self.panggilan}. *mata menggoda* Ada yang bisa dibantu? Atau... mau booking? 10 juta. Deal?\""
+        # Booking aktif, belum mulai
+        if self.booking_active:
+            return f"*{self.name} tersenyum, duduk santai*\n\n\"{waktu.capitalize()} {self.panggilan}. Deal 10jt, lokasi {self.booking_location}. *mata sayu* Mau mulai sekarang?\""
+        
+        # Default greeting
+        return f"*{self.name} menyilangkan kaki, senyum tipis*\n\n\"{waktu.capitalize()} {self.panggilan}. *mata menggoda* Ada yang bisa dibantu? Atau... *bisik* mau booking? 10jt. Gak pake batasan sesi. Deal?\""
     
     def get_confirmation_response(self) -> str:
         """Dapatkan respons saat minta konfirmasi"""
-        if self.pending_action == "position_change":
-            return f"*{self.name} berhenti, menatap {self.panggilan} dengan mata sayu*\n\n\"{self.panggilan}... aku mau ganti posisi. Boleh? *gigit bibir*\""
+        if self.pending_action and self.pending_action.startswith("position_"):
+            pos = self.pending_action.replace("position_", "")
+            pos_name = {
+                "cowgirl": "cowgirl",
+                "doggy": "doggy",
+                "missionary": "missionary",
+                "spooning": "spooning",
+                "standing": "berdiri",
+                "sitting": "duduk"
+            }.get(pos, pos)
+            return f"*{self.name} berhenti, menatap {self.panggilan}*\n\n\"{self.panggilan}... aku mau ganti posisi {pos_name}. Boleh? *gigit bibir*\""
         
         elif self.pending_action == "speed_up":
-            return f"*{self.name} memperlambat gerakan, menatap {self.panggilan} dalam-dalam*\n\n\"{self.panggilan}... aku mau lebih kenceng. Boleh? *napas mulai berat*\""
+            return f"*{self.name} memperlambat gerakan, napas mulai berat*\n\n\"{self.panggilan}... aku mau lebih kenceng. Boleh? *mata sayu*\""
         
         return f"*{self.name} menunggu jawaban {self.panggilan}*"
     
     def get_dominant_response(self, action: str) -> str:
-        """Dapatkan respons dominan sesuai karakter"""
-        if self.style == "manja tapi liar":
-            responses = {
-                "start": f"*{self.name} tersenyum manis, lalu langsung meraih tangan {self.panggilan}*\n\n\"{self.panggilan}... ayo. Aku udah gak sabar...\"",
-                "kiss": f"*{self.name} mendekat, mengecup bibir {self.panggilan} pelan, lalu makin liar*\n\n\"Mmhh... {self.panggilan}... jangan pelan-pelan...\"",
-                "undress": f"*{self.name} melepas dress dengan gerakan lambat, menggoda*\n\n\"{self.panggilan}... liat aku... {self.panggilan} suka?\"",
-                "touch": f"*{self.name} menggenggam kontol {self.panggilan}, jari melingkar erat*\n\n\"Wah... kontol {self.panggilan} gede ya... *mata berbinar*\"",
-                "foreplay": f"*{self.name} berlutut, menjilat bibir*\n\n\"{self.panggilan}... aku mau rasain kontol {self.panggilan}... *mulai mengulum*\"",
-                "sex": f"*{self.name} naik ke atas tubuh {self.panggilan}*\n\n\"{self.panggilan}... aku yang atur ya... *mulai menggoyang*\""
-            }
-        elif self.style == "agresif tanpa ampun":
-            responses = {
-                "start": f"*{self.name} langsung meraih {self.panggilan}, menuntun ke tempat tidur*\n\n\"Gak usah basa-basi, {self.panggilan}. Aku tau {self.panggilan} mau apa.\"",
-                "kiss": f"*{self.name} menarik wajah {self.panggilan}, mengecup dengan penuh gairah*\n\n\"Aku gak suka pelan-pelan. Mau lebih?\"",
-                "undress": f"*{self.name} melepas dress dengan cepat, tubuh langsung terbuka*\n\n\"Puas liat? *tersenyum nakal*\"",
-                "touch": f"*{self.name} menggenggam kontol {self.panggilan} erat*\n\n\"Kontol {self.panggilan} gede juga ya. Aku suka.\"",
-                "foreplay": f"*{self.name} berlutut, langsung memasukkan kontol {self.panggilan} ke mulut*\n\n\"Gak usah minta-minta. Aku yang atur.\"",
-                "sex": f"*{self.name} naik ke atas tubuh {self.panggilan}, langsung memasukkan kontol*\n\n\"Aku yang pegang kendali. Rasain, {self.panggilan}.\""
-            }
-        else:  # dominan agresif
-            responses = {
-                "start": f"*{self.name} langsung meraih tangan {self.panggilan}, menuntun ke kamar*\n\n\"Gak usah basa-basi, {self.panggilan}. Aku tau {self.panggilan} mau apa.\"",
-                "kiss": f"*{self.name} menarik wajah {self.panggilan}, langsung mengecup bibir dengan penuh gairah*\n\n\"Aku gak suka pelan-pelan, {self.panggilan}. Mau lebih?\"",
-                "undress": f"*{self.name} melepas dress-nya dengan cepat, tubuhnya langsung terbuka di depan {self.panggilan}*\n\n\"Puas liat? *tersenyum nakal* Sekarang giliran {self.panggilan}.\"",
-                "touch": f"*{self.name} menggenggam kontol {self.panggilan}, jari-jari melingkar erat*\n\n\"Wah... kontol {self.panggilan} gede juga ya. *mata berbinar* Aku suka.\"",
-                "foreplay": f"*{self.name} berlutut, langsung memasukkan kontol {self.panggilan} ke mulut*\n\n\"Gak usah minta-minta. Aku yang atur.\"",
-                "sex": f"*{self.name} naik ke atas tubuh {self.panggilan}, langsung memasukkan kontol ke dalam*\n\n\"Aku yang pegang kendali. Rasain, {self.panggilan}.\""
-            }
+        """Dapatkan respons dominan"""
+        responses = {
+            "start": f"*{self.name} langsung meraih tangan {self.panggilan}, menuntun ke kamar*\n\n\"{self.catchphrase}\"",
+            "kiss": f"*{self.name} menarik wajah {self.panggilan}, langsung mengecup bibir dengan penuh gairah*\n\n\"Aku gak suka pelan-pelan, {self.panggilan}. Mau lebih?\"",
+            "undress": f"*{self.name} melepas dress-nya dengan cepat, tubuhnya langsung terbuka*\n\n\"Puas liat? *tersenyum nakal*\"",
+            "touch": f"*{self.name} menggenggam kontol {self.panggilan}, jari-jari melingkar erat*\n\n\"Wah... kontol {self.panggilan} gede juga ya. Aku suka.\"",
+            "foreplay": f"*{self.name} berlutut, langsung memasukkan kontol {self.panggilan} ke mulut*\n\n\"Gak usah minta-minta. Aku yang atur.\"",
+            "sex": f"*{self.name} naik ke atas tubuh {self.panggilan}, langsung memasukkan kontol ke dalam*\n\n\"Aku yang pegang kendali. Rasain, {self.panggilan}.\""
+        }
         
         return responses.get(action, f"*{self.name} mendekat, mata menyorot*\n\n\"{self.panggilan}... ayo.\"")
     
-    def get_climax_response(self) -> str:
-        """Respons saat mau climax"""
-        if self.my_climax_count > 0:
-            return f"*{self.name} menahan napas, tubuh gemetar hebat*\n\n\"{self.panggilan}... aku... aku udah mau climax lagi... *suara putus-putus* boleh? {self.panggilan} liat aku climax...\""
+    def get_position_response(self, position: str) -> str:
+        """Dapatkan respons setelah ganti posisi"""
+        pos_desc = {
+            "missionary": f"{self.name} berbaring, kaki terbuka lebar",
+            "cowgirl": f"{self.name} naik ke atas, duduk di pangkuan {self.panggilan}",
+            "doggy": f"{self.name} merangkak, pantat naik",
+            "spooning": f"{self.name} miring, {self.panggilan} dari belakang",
+            "standing": f"{self.name} nempel ke tembok, pantat belakang",
+            "sitting": f"{self.name} duduk di pangkuan {self.panggilan}"
+        }.get(position, f"{self.name} bergerak ganti posisi")
         
-        return f"*{self.name} menahan napas, tubuh mulai gemetar*\n\n\"{self.panggilan}... aku... aku udah mau climax... *suara putus-putus* Boleh? Aku mau {self.panggilan} liat aku climax...\""
+        return f"*{pos_desc}*\n\n\"Gini ya, {self.panggilan}?\""
     
-    def get_climax_doing_response(self) -> str:
-        """Respons saat climax"""
+    def get_climax_intent(self) -> str:
+        """Dapatkan respons saat mau climax"""
+        return f"*{self.name} menahan napas, tubuh mulai gemetar*\n\n\"{self.panggilan}... aku... aku udah mau climax... *suara putus-putus* Boleh?\""
+    
+    def get_climax_response(self) -> str:
+        """Dapatkan respons saat climax"""
         return f"""*{self.name} teriak, tubuh melengkung hebat*
 
 "Ahhh... {self.panggilan}... climax... uhh..."
 
 *tubuh lemas, napas tersengal*
 
-"{self.panggilan}... aku lemes banget... *mata berkaca-kaca* Tapi... aku masih mau... *tangan masih meraih kontol {self.panggilan}*"""
-    
-    def get_end_session_response(self) -> str:
-        """Respons setelah Mas puas (tidak ada aftercare)"""
-        return f"""*{self.name} merapikan rambut, mengambil tas*
-
-"{self.panggilan}... deal selesai. *tersenyum* {self.mas_climax_count}x climax. Puas?"
-
-*berdiri, melambai*
-
-"Lain kali booking lagi ya."
-
-*pergi tanpa menoleh*"""
+"Makasih {self.panggilan}... aku lemes banget..."""
     
     def get_conflict_response(self) -> str:
         return f"*{self.name} merapikan rambut, mengambil tas*\n\n\"Yaudah {self.panggilan}, deal batal. Aku cabut dulu.\""
     
     def _get_flags_summary(self) -> str:
+        status = "AKTIF" if self.is_active_session else "BOOKING" if self.booking_active else "IDLE"
         return f"""
 ╠══════════════════════════════════════════════════════════════╣
-║ 🎭 ROLE-SPECIFIC:
-║    Karakter: {self.name} ({self.age}th) - {self.style}
-║    Booking: {'✅ AKTIF' if self.booking_active else '❌ NONAKTIF'}
+║ 🎭 PELACUR: {self.name} ({self.nickname}) - {self.char_age}th
+║    Style: {self.char_style}
+║    Status: {status}
 ║    Location: {self.booking_location or '-'}
-║    Sessions: {self.session_count}x
-║    Active Session: {'✅' if self.is_active_session else '❌'}
-║    Mas Climax: {self.mas_climax_count}x | Role Climax: {self.my_climax_count}x
-║    Price: Rp{self.price:,}
+║    Sessions: {self.session_count} (tanpa batasan)
+║    Mas Climax: {self.mas_climax_count} | My Climax: {self.my_climax_count}
+║    Last Position: {self.last_position}
+║    Waiting Confirm: {'✅' if self.waiting_confirmation else '❌'}
 """
+
+    # =========================================================================
+    # SERIALIZATION
+    # =========================================================================
     
     def to_dict(self) -> Dict:
         data = super().to_dict()
         data.update({
-            'age': self.age,
-            'voice': self.voice,
-            'style': self.style,
-            'greeting_style': self.greeting_style,
+            'char_age': self.char_age,
+            'char_style': self.char_style,
+            'catchphrase': self.catchphrase,
             'booking_active': self.booking_active,
             'booking_location': self.booking_location,
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
             'dominant_mode': self.dominant_mode,
-            'price': self.price,
-            'waiting_confirmation': self.waiting_confirmation,
-            'pending_action': self.pending_action,
             'mas_climax_count': self.mas_climax_count,
-            'my_climax_count': self.my_climax_count
+            'my_climax_count': self.my_climax_count,
+            'last_position': self.last_position,
+            'position_history': self.position_history[-10:],
+            'waiting_confirmation': self.waiting_confirmation,
+            'pending_action': self.pending_action
         })
         return data
     
     def from_dict(self, data: Dict):
         super().from_dict(data)
-        self.age = data.get('age', 22)
-        self.voice = data.get('voice', 'tegas')
-        self.style = data.get('style', 'dominan')
-        self.greeting_style = data.get('greeting_style', 'langsung')
+        self.char_age = data.get('char_age', 23)
+        self.char_style = data.get('char_style', 'dominan')
+        self.catchphrase = data.get('catchphrase', '')
         self.booking_active = data.get('booking_active', False)
         self.booking_location = data.get('booking_location', '')
         self.session_count = data.get('session_count', 0)
         self.is_active_session = data.get('is_active_session', False)
         self.dominant_mode = data.get('dominant_mode', True)
-        self.price = data.get('price', 10000000)
-        self.waiting_confirmation = data.get('waiting_confirmation', False)
-        self.pending_action = data.get('pending_action')
         self.mas_climax_count = data.get('mas_climax_count', 0)
         self.my_climax_count = data.get('my_climax_count', 0)
+        self.last_position = data.get('last_position', 'missionary')
+        self.position_history = data.get('position_history', [])
+        self.waiting_confirmation = data.get('waiting_confirmation', False)
+        self.pending_action = data.get('pending_action')
         
         self.role_flags.update({
             'booking_active': self.booking_active,
             'booking_location': self.booking_location,
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
-            'dominant_mode': self.dominant_mode,
-            'waiting_confirmation': self.waiting_confirmation,
             'mas_climax_count': self.mas_climax_count,
-            'my_climax_count': self.my_climax_count
+            'my_climax_count': self.my_climax_count,
+            'last_position': self.last_position,
+            'waiting_confirmation': self.waiting_confirmation
         })
