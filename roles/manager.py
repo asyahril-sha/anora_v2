@@ -86,7 +86,12 @@ class RoleManager:
             appearance="Tinggi 170cm, berat 53kg, postur tinggi semampai, kulit kuning langsat, wajah oval, mata tajam menggoda, alis tegas. Hijab instan warna-warna cerah. Bentuk tubuh model: kaki panjang, pinggul lebar, pinggang ramping, payudara ideal. Penampilan selalu stylish dan eye-catching."
         )
 
+        # 🔥 TAMBAHKAN ROLE BARU 🔥
+    
+        # Therapist - Random 3 karakter (Anya, Syifa, Laura)
         self.roles['therapist'] = TherapistRole()
+    
+        # Pelacur - Random 3 karakter (Davina, Michelle, Jihane)
         self.roles['pelacur'] = PelacurRole()
 
         logger.info(f"🎭 Roles loaded: {list(self.roles.keys())}")
