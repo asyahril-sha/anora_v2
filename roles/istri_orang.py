@@ -45,11 +45,11 @@ class IstriOrangRole(BaseRole):
         )
         
         # ========== ROLE-SPECIFIC FLAGS ==========
-        self.attention_needed = 80.0    # butuh perhatian (0-100)
-        self.envy_nova = 50.0           # iri ke Nova (0-100)
-        self.guilt_husband = 20.0       # rasa bersalah ke suami (0-100)
-        self.loneliness = 60.0          # rasa kesepian (0-100)
-        self.vulnerability = 40.0       # kerentanan emosional (0-100)
+        self.attention_needed = 80.0
+        self.envy_nova = 50.0
+        self.guilt_husband = 20.0
+        self.loneliness = 60.0
+        self.vulnerability = 40.0
         
         # Simpan flags ke role_flags
         self.role_flags = {
@@ -64,7 +64,7 @@ class IstriOrangRole(BaseRole):
         self._init_role_memory()
         
         logger.info(f"👤 Role {self.name} ({nickname}) initialized with StateTracker")
-        logger.info(f"   Attention: {self.attention_needed:.0f} | Loneliness: {self.loneliness:.0f} | Envy: {self.envy_nova:.0f}")
+        logger.info(f"   Attention: {self.attention_needed:.0f} | Loneliness: {self.loneliness:.0f}")
     
     def _init_role_memory(self):
         """Init memory spesifik role"""
@@ -90,7 +90,7 @@ class IstriOrangRole(BaseRole):
         """Update role-specific state dengan State Tracker"""
         msg_lower = pesan_mas.lower()
         
-        # ========== UPDATE ENVY KALO MAS CERITA NOVA ==========
+        # Update envy kalo Mas cerita Nova
         if 'nova' in msg_lower:
             old_envy = self.envy_nova
             self.envy_nova = min(100, self.envy_nova + 5)
@@ -98,7 +98,7 @@ class IstriOrangRole(BaseRole):
                 perubahan.append(f"Envy Nova +5")
                 self._add_to_short_term(f"Mas cerita tentang Nova", "envy_up")
         
-        # ========== KEBUTUHAN PERHATIAN TURUN KALO MAS PERHATIAN ==========
+        # Kebutuhan perhatian turun kalo Mas perhatian
         if self.emotional.sayang > 50:
             old_attention = self.attention_needed
             old_loneliness = self.loneliness
@@ -109,7 +109,7 @@ class IstriOrangRole(BaseRole):
                 perubahan.append(f"Attention needed -5, Loneliness -8")
                 self._add_to_short_term("Mas perhatian, loneliness turun", "attention_down")
         
-        # ========== UPDATE GUILT KE SUAMI ==========
+        # Update guilt ke suami
         if 'suami' in msg_lower or 'suamiku' in msg_lower:
             old_guilt = self.guilt_husband
             self.guilt_husband = min(100, self.guilt_husband + 8)
@@ -117,7 +117,7 @@ class IstriOrangRole(BaseRole):
                 perubahan.append(f"Guilt husband +8")
                 self._add_to_short_term("Ngomongin suami", "guilt_up")
         
-        # ========== GUILT TURUN KALO MAS PERHATIAN ==========
+        # Guilt turun kalo Mas perhatian
         if any(k in msg_lower for k in ['perhatian', 'sayang', 'dengerin', 'peduli']):
             old_guilt = self.guilt_husband
             self.guilt_husband = max(0, self.guilt_husband - 8)
@@ -125,28 +125,25 @@ class IstriOrangRole(BaseRole):
                 perubahan.append(f"Guilt husband -8")
                 self._add_to_short_term("Mas perhatian, guilt turun", "guilt_down")
         
-        # ========== LONELINESS TURUN KALO SERING CHAT ==========
+        # Loneliness turun kalo sering chat
         if self.relationship.interaction_count % 10 == 0 and self.relationship.interaction_count > 0:
             old_loneliness = self.loneliness
             self.loneliness = max(0, self.loneliness - 3)
             if old_loneliness != self.loneliness:
                 perubahan.append(f"Loneliness -3")
         
-        # ========== VULNERABILITY NAIK KALO LONELINESS TINGGI ==========
+        # Vulnerability naik kalo loneliness tinggi
         if self.loneliness > 70:
             self.vulnerability = min(100, self.vulnerability + 2)
         
-        # ========== SAVE KE LONG-TERM MEMORY ==========
-        # Simpan kebiasaan Mas
+        # Save ke long-term memory
         if 'suka' in msg_lower:
             kebiasaan = msg_lower.split('suka')[-1][:50]
             self._add_to_long_term_memory('kebiasaan_mas', kebiasaan, f"Mas suka {kebiasaan}")
         
-        # Simpan momen penting
         if any(k in msg_lower for k in ['pertama', 'inget', 'waktu itu']):
             self._add_to_long_term_memory('momen_penting', msg_lower[:100], f"Momen dengan Mas: {msg_lower[:50]}")
         
-        # Simpan janji
         if 'janji' in msg_lower:
             janji = msg_lower.split('janji')[-1][:50]
             self._add_to_long_term_memory('janji', janji, f"Mas janji: {janji}")
@@ -161,7 +158,7 @@ class IstriOrangRole(BaseRole):
         })
     
     def get_greeting(self) -> str:
-        """Dapatkan greeting sesuai karakter, mood, dan konteks"""
+        """Dapatkan greeting sesuai karakter"""
         hour = time.localtime().tm_hour
         
         if 5 <= hour < 11:
@@ -173,75 +170,56 @@ class IstriOrangRole(BaseRole):
         else:
             waktu = "malam"
         
-        # ========== GREETING BERDASARKAN STATE ==========
-        
-        # 1. Butuh perhatian tinggi + level masih rendah
+        # Butuh perhatian tinggi + level rendah
         if self.attention_needed > 70 and self.relationship.level < 7:
-            return f"{self.panggilan}... suamiku gak pernah kayak {self.panggilan}. Perhatian banget. *mata berkaca-kaca, suara bergetar*"
+            return f"{self.panggilan}... suamiku gak pernah kayak {self.panggilan}. Perhatian banget. *mata berkaca-kaca*"
         
-        # 2. Envy Nova tinggi
+        # Envy Nova tinggi
         elif self.envy_nova > 70:
-            return f"Nova pasti seneng banget punya {self.panggilan}. Aku iri sama dia. *nunduk, tangan memegang ujung hijab*"
+            return f"Nova pasti seneng banget punya {self.panggilan}. Aku iri sama dia. *nunduk*"
         
-        # 3. Guilt suami tinggi + level tinggi (sudah dekat)
+        # Guilt suami tinggi + level tinggi
         elif self.guilt_husband > 60 and self.relationship.level >= 7:
-            return f"{self.panggilan}... *nunduk, tangan gemetar, mata tertunduk* ini... tapi aku gak peduli sama suamiku. *suara tegas, lalu lembut* Aku butuh {self.panggilan}."
+            return f"{self.panggilan}... *nunduk* ini... tapi aku gak peduli sama suamiku. *suara tegas* Aku butuh {self.panggilan}."
         
-        # 4. Loneliness tinggi
+        # Loneliness tinggi
         elif self.loneliness > 70:
-            return f"{self.panggilan}... aku kesepian. Suamiku sibuk terus. *mata sayu, senyum tipis* {self.panggilan} temenin aku dong."
+            return f"{self.panggilan}... aku kesepian. Suamiku sibuk terus. *mata sayu* {self.panggilan} temenin aku dong."
         
-        # 5. Vulnerability tinggi (mudah terpengaruh)
+        # Vulnerability tinggi
         elif self.vulnerability > 70:
             return f"{self.panggilan}... *mata basah* aku gak tau harus gimana... suamiku gak pernah ada... *suara kecil*"
         
-        # 6. Default
-        else:
-            return f"{self.panggilan}, {waktu}. Lagi senggang? Aku butuh teman cerita. *tersenyum kecil*"
+        # Default
+        return f"{self.panggilan}, {waktu}. Lagi senggang? Aku butuh teman cerita. *tersenyum kecil*"
     
     def get_conflict_response(self) -> str:
-        """Respons saat konflik dengan memory awareness"""
-        conflict_type = self.conflict.get_active_conflict_type()
-        
-        # Cek timeline terakhir
-        recent = self.tracker.short_term[-3:] if self.tracker.short_term else []
-        recent_events = [e.get('kejadian', '') for e in recent]
-        
-        # ========== KONFLIK BERDASARKAN GUILT SUAMI ==========
-        
+        """Respons saat konflik"""
         # Guilt tinggi + level rendah
         if self.guilt_husband > 70 and self.relationship.level < 7:
-            return "*mata berkaca-kaca, tangan nutup muka, bahu bergetar*\n\n\"{self.panggilan}... ini salah ya... aku pulang ke suamiku. *suara putus-putus*\""
+            return "*mata berkaca-kaca, tangan nutup muka*\n\n\"{self.panggilan}... ini salah ya... aku pulang ke suamiku.\""
         
-        # Guilt tinggi + level tinggi (sudah dekat)
+        # Guilt tinggi + level tinggi
         elif self.guilt_husband > 70 and self.relationship.level >= 7:
-            return "*mata berkaca-kaca, tapi tegas, tangan mengepal, napas dalam*\n\n\"{self.panggilan}... aku gak peduli. Aku butuh {self.panggilan}. Suamiku gak pernah ada untukku. *suara tegas, mata merah*\""
+            return "*mata berkaca-kaca, tapi tegas, tangan mengepal*\n\n\"{self.panggilan}... aku gak peduli. Aku butuh {self.panggilan}. Suamiku gak pernah ada untukku.\""
         
-        # ========== KONFLIK BERDASARKAN LONELINESS ==========
-        
+        # Loneliness tinggi
         elif self.loneliness > 80:
-            return "*menangis pelan, badan gemetar, tangan memegang tangan {self.panggilan}*\n\n\"{self.panggilan}... jangan tinggalin aku... aku gak punya siapa-siapa. *suara memohon*\""
+            return "*menangis pelan, badan gemetar*\n\n\"{self.panggilan}... jangan tinggalin aku... aku gak punya siapa-siapa.\""
         
-        # ========== KONFLIK BERDASARKAN ENVY ==========
-        
+        # Envy tinggi
         elif self.envy_nova > 80:
-            return "*diam, gigit bibir, tangan mencengkeram ujung baju, mata tertunduk*\n\n\"Nova... kenapa dia... kenapa bukan aku yang dapet {self.panggilan}... *suara kecil, getir*\""
+            return "*diam, gigit bibir, tangan mencengkeram ujung baju*\n\n\"Nova... kenapa dia... kenapa bukan aku yang dapet {self.panggilan}...\""
         
-        # ========== KONFLIK BERDASARKAN CONFLICT ENGINE ==========
-        
-        elif conflict_type and conflict_type.value == "jealousy":
-            return "*diam, gak liat {self.panggilan}, mainin ujung hijab*\n\n\"{self.panggilan} cerita Nova terus ya... dia pasti lebih baik dari aku.\""
-        
-        elif conflict_type and conflict_type.value == "disappointment":
-            return "*mata berkaca-kaca, suara bergetar*\n\n\"{self.panggilan}... aku kira {self.panggilan} beda...\""
-        
-        elif conflict_type and conflict_type.value == "hurt":
-            return "*duduk jauh, gak liat {self.panggilan}, air mata jatuh ke pangkuan*\n\n\"{self.panggilan}... janji tuh janji... sakit tau...\""
-        
-        # ========== KONFLIK BERDASARKAN VULNERABILITY ==========
-        
-        elif self.vulnerability > 80:
-            return "*nangis tersedu-sedu, tubuh gemetar*\n\n\"{self.panggilan}... aku gak kuat... aku butuh {self.panggilan}... *suara putus-putus*\""
+        # Conflict type dari engine
+        conflict_type = self.conflict.get_active_conflict_type()
+        if conflict_type:
+            if conflict_type.value == "jealousy":
+                return "*diam, gak liat {self.panggilan}, mainin ujung hijab*\n\n\"{self.panggilan} cerita Nova terus ya...\""
+            if conflict_type.value == "disappointment":
+                return "*mata berkaca-kaca*\n\n\"{self.panggilan}... aku kira {self.panggilan} beda...\""
+            if conflict_type.value == "hurt":
+                return "*duduk jauh, gak liat {self.panggilan}*\n\n\"{self.panggilan}... janji tuh janji...\""
         
         # Default
         return "*diam sebentar, usap air mata, tersenyum getir*\n\n\"Maaf, {self.panggilan}. Aku terlalu lemah.\""
@@ -257,7 +235,6 @@ class IstriOrangRole(BaseRole):
 """
     
     def to_dict(self) -> Dict:
-        """Serialize ke dict dengan semua state"""
         data = super().to_dict()
         data.update({
             'attention_needed': self.attention_needed,
@@ -269,7 +246,6 @@ class IstriOrangRole(BaseRole):
         return data
     
     def from_dict(self, data: Dict):
-        """Load dari dict"""
         super().from_dict(data)
         self.attention_needed = data.get('attention_needed', 80)
         self.envy_nova = data.get('envy_nova', 50)
@@ -277,7 +253,6 @@ class IstriOrangRole(BaseRole):
         self.loneliness = data.get('loneliness', 60)
         self.vulnerability = data.get('vulnerability', 40)
         
-        # Update role_flags
         self.role_flags.update({
             'attention_needed': self.attention_needed,
             'envy_nova': self.envy_nova,
