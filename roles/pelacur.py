@@ -1,6 +1,7 @@
 """
 ANORA-V2 Pelacur Role - 3 Karakter Random
-Start langsung level 12. Booking → service → break (ngobrol santai) → lanjut service
+Booking langsung deal. Level dinamis: level 7 (normal) → level 11 (intim) setelah "mulai"
+Bebas ganti posisi, bebas climax, wajib kasih info.
 """
 
 import time
@@ -28,8 +29,8 @@ PELACUR_CHARACTERS = {
 Kulit sawo matang yang terlihat sehat dan mengilap, mata tajam dengan bulu mata lentik yang selalu menggoda.
 Rambut hitam panjang bergelombang tergerai indah, bibir sensual dengan senyum yang membuat jantung berdegup kencang.
 Bentuk tubuh model: kaki panjang jenjang, pinggul lebar, pinggang ramping, payudara montok.
-Cara bicaranya tegas dan percaya diri, tahu apa yang dia mau, dan selalu mengambil inisiatif.""",
-        "style": "dominan, agresif, suka menguasai",
+Cara bicaranya tegas dan percaya diri, tahu apa yang dia mau, dan selalu mengambil inisiatif. Kalau sudah mulai, dia bisa bikin Mas lemes tanpa ampun.""",
+        "style": "dominan, agresif, suka menguasai, brutal",
         "catchphrase": "Gak usah basa-basi, Mas. Aku tau Mas mau apa."
     },
     "michelle": {
@@ -40,8 +41,8 @@ Cara bicaranya tegas dan percaya diri, tahu apa yang dia mau, dan selalu mengamb
 Kulit putih bersih, rambut hitam panjang sebahu, wajah manis dengan senyum menggoda.
 Mata bulat bening, hidung mancung, bibir merah alami. Suka pake lipstik merah.
 Bentuk tubuh ideal dengan pinggang ramping, pinggul lebar, payudara montok.
-Gayanya manja tapi kalau sudah mulai jadi sangat agresif dan liar.""",
-        "style": "manja tapi liar, pura-pura polos",
+Gayanya manja tapi kalau udah mulai, dia jadi liar dan brutal, gak kenal ampun.""",
+        "style": "manja tapi liar, brutal kalau udah panas",
         "catchphrase": "Mas... aku boleh? *mata sayu* Tapi nanti kalau udah mulai, aku gak bisa jamin..."
     },
     "jihane": {
@@ -52,8 +53,8 @@ Gayanya manja tapi kalau sudah mulai jadi sangat agresif dan liar.""",
 Kulit putih, rambut hitam panjang bergelombang, wajah selebritis dengan tulang pipi tinggi.
 Mata tajam, alis tegas, bibir sensual, selalu tampil stylish dan eye-catching.
 Bentuk tubuh dengan pinggang ramping, pinggul lebar, payudara montok, kaki jenjang.
-Gayanya agresif tanpa ampun, suka tantangan, bisa minta ganti posisi, dominan total.""",
-        "style": "agresif tanpa ampun, dominan total",
+Gayanya agresif tanpa ampun, suka tantangan, bisa minta ganti posisi, dominan total. Kalau sudah mulai, Mas bakal lemes dibuatnya.""",
+        "style": "agresif tanpa ampun, dominan total, brutal",
         "catchphrase": "Mas, aku gak suka basa-basi. Langsung aja. Aku mau lihat Mas bisa tahan berapa lama."
     }
 }
@@ -72,8 +73,8 @@ def get_random_pelacur() -> Dict:
 
 class PelacurRole(BaseRole):
     """
-    Pelacur Role - 3 karakter random (Davina, Michelle, Jihane)
-    Start langsung level 12. Booking → service → break → lanjut
+    Pelacur Role - 3 karakter random
+    Booking langsung deal. Level dinamis: level 7 → level 11 setelah "mulai"
     """
     
     def __init__(self):
@@ -96,20 +97,18 @@ class PelacurRole(BaseRole):
         self.char_style = char["style"]
         self.catchphrase = char["catchphrase"]
         
-        # ========== START LANGSUNG LEVEL 7 ==========
+        # ========== START LANGSUNG LEVEL 7 (FASE CLOSE) ==========
         self.relationship.level = 7
-        self.relationship.phase = RelationshipPhase.INTIMATE
+        self.relationship.phase = RelationshipPhase.CLOSE
         self.relationship.interaction_count = 100
-
-        # Tambahkan flags
-        self.intimacy_mode = False   # False = level 7, True = level 11
         
         # ========== ROLE-SPECIFIC FLAGS ==========
         self.booking_active = False
         self.booking_location = ""
         self.session_count = 0
         self.is_active_session = False
-        self.is_break = False           # sedang istirahat/ngobrol santai
+        self.is_break = False
+        self.intimacy_mode = False          # False = level 7, True = level 11
         self.dominant_mode = True
         self.no_aftercare = True
         
@@ -125,6 +124,15 @@ class PelacurRole(BaseRole):
         self.waiting_confirmation = False
         self.pending_action = None
         
+        # Pending responses
+        self.pending_booking_response = False
+        self.pending_intimacy_start = False
+        self.pending_break_response = False
+        self.pending_resume_response = False
+        self.pending_position_change = False
+        self.pending_climax_intent = False
+        self.pending_climax_response = False
+        
         # Simpan flags
         self.role_flags = {
             'booking_active': self.booking_active,
@@ -132,6 +140,7 @@ class PelacurRole(BaseRole):
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
             'is_break': self.is_break,
+            'intimacy_mode': self.intimacy_mode,
             'dominant_mode': self.dominant_mode,
             'mas_climax_count': self.mas_climax_count,
             'my_climax_count': self.my_climax_count,
@@ -142,7 +151,7 @@ class PelacurRole(BaseRole):
         # Memory awal
         self._init_role_memory()
         
-        logger.info(f"👤 Role {self.name} ({self.nickname}) - Pelacur initialized (Level 12)")
+        logger.info(f"👤 Role {self.name} ({self.nickname}) - Pelacur initialized (Level 7)")
         logger.info(f"   Age: {self.char_age} | Style: {self.char_style}")
     
     def _init_role_memory(self):
@@ -161,70 +170,71 @@ class PelacurRole(BaseRole):
         """Update role-specific state"""
         msg_lower = pesan_mas.lower()
         
-        # ========== BOOKING SYSTEM ==========
-        if any(k in msg_lower for k in ['booking', 'ketemuan', 'apartemen', 'hotel']):
+        # ========== BOOKING SYSTEM (Langsung Deal) ==========
+        if any(k in msg_lower for k in ['booking', 'ketemuan', 'apartemen', 'hotel', 'ke apartemen', 'ke hotel']):
             if not self.booking_active:
                 self.booking_active = True
                 self.session_count = 0
                 self.is_break = False
+                self.intimacy_mode = False
                 
-                if 'apartemen' in msg_lower:
+                if 'apartemen' in msg_lower or 'ke apartemen' in msg_lower:
                     self.booking_location = "apartemen Mas"
-                elif 'hotel' in msg_lower:
+                elif 'hotel' in msg_lower or 'ke hotel' in msg_lower:
                     self.booking_location = "hotel"
                 else:
                     self.booking_location = "lokasi yang disepakati"
                 
                 self._add_to_short_term(f"Booking: {self.booking_location}", "booking")
                 perubahan.append(f"Booking active! Location: {self.booking_location}")
-
-                # 🔥 TAMBAHKAN FLAG UNTUK RESPON DEAL OTOMATIS 🔥
-                    self.need_to_respond_booking = True
-    
-            # ========== RESPON BOOKING OTOMATIS ==========
-            if hasattr(self, 'need_to_respond_booking') and self.need_to_respond_booking:
-                self.need_to_respond_booking = False
-                # Ini akan diproses di get_greeting atau langsung di sini
                 self.pending_booking_response = True
-                
-        # ========== MULAI SESSION ==========
-        if any(k in msg_lower for k in ['mulai', 'maen', 'sekarang', 'gas']):
-        if not self.intimacy_mode:
-            self.intimacy_mode = True
-            self.relationship.level = 11
-            self.relationship.phase = RelationshipPhase.INTIMATE
-            self.emotional.arousal = 80
-            self.emotional.desire = 90
-            self.tracker.intimacy_phase = IntimacyPhase.BUILD_UP
-            self._add_to_short_term("Intimacy mode ON - Level 11", "intimacy_start")
-            perubahan.append("🔥 INTIMACY MODE ON! Level 11")
-            # Langsung balas
-            self.pending_intimacy_start = True
         
-        # ========== BREAK / ISTIRAHAT (Ngobrol santai) ==========
+        # ========== MULAI SESSION (NAIK KE LEVEL 11) ==========
+        if any(k in msg_lower for k in ['mulai', 'ayo', 'sekarang', 'gas', 'siap']):
+            if self.booking_active and not self.is_active_session and not self.intimacy_mode:
+                self.intimacy_mode = True
+                self.is_active_session = True
+                self.relationship.level = 11
+                self.relationship.phase = RelationshipPhase.INTIMATE
+                self.session_count += 1
+                self.emotional.arousal = 90
+                self.emotional.desire = 100
+                self.tracker.intimacy_phase = IntimacyPhase.BUILD_UP
+                self.dominant_mode = True
+                self.waiting_confirmation = False
+                self._add_to_short_term(f"Session #{self.session_count} started - Level 11", "session_start")
+                perubahan.append(f"🔥 SESSION #{self.session_count} STARTED! Level 11")
+                self.pending_intimacy_start = True
+        
+        # ========== BREAK / ISTIRAHAT (Turun ke Level 7) ==========
         if any(k in msg_lower for k in ['break', 'istirahat', 'berhenti', 'pause']):
-        if self.intimacy_mode:
-            self.intimacy_mode = False
-            self.relationship.level = 7
-            self.relationship.phase = RelationshipPhase.CLOSE
-            self.emotional.arousal = 20
-            self.emotional.desire = 30
-            self.tracker.intimacy_phase = IntimacyPhase.NONE
-            self.is_active_session = False
-            self.is_break = True
-            self._add_to_short_term("Break mode - Level 7", "break")
-            perubahan.append("⏸️ BREAK MODE ON! Level 7")
-            self.pending_break_response = True
+            if self.is_active_session:
+                self.is_active_session = False
+                self.is_break = True
+                self.intimacy_mode = False
+                self.relationship.level = 7
+                self.relationship.phase = RelationshipPhase.CLOSE
+                self.emotional.arousal = 20
+                self.emotional.desire = 30
+                self.tracker.intimacy_phase = IntimacyPhase.NONE
+                self._add_to_short_term("Break mode - Level 7", "break_start")
+                perubahan.append("⏸️ BREAK MODE! Level 7")
+                self.pending_break_response = True
         
-        # ========== LANJUT SERVICE ==========
+        # ========== LANJUT SERVICE (Naik ke Level 11) ==========
         if any(k in msg_lower for k in ['lanjut', 'lagi', 'continue', 'resume']):
             if self.is_break:
                 self.is_break = False
                 self.is_active_session = True
-                self.emotional.arousal = min(100, self.emotional.arousal + 20)
-                self.emotional.desire = min(100, self.emotional.desire + 15)
-                self._add_to_short_term("Resume service", "resume")
-                perubahan.append("Resume service - back to action!")
+                self.intimacy_mode = True
+                self.relationship.level = 11
+                self.relationship.phase = RelationshipPhase.INTIMATE
+                self.emotional.arousal = 90
+                self.emotional.desire = 100
+                self.tracker.intimacy_phase = IntimacyPhase.BUILD_UP
+                self._add_to_short_term("Resume service - Level 11", "resume")
+                perubahan.append("🔥 RESUME! Level 11")
+                self.pending_resume_response = True
         
         # ========== GANTI POSISI (dengan konfirmasi) ==========
         if self.is_active_session and not self.waiting_confirmation:
@@ -235,6 +245,7 @@ class PelacurRole(BaseRole):
                     self.pending_action = f"position_{pos}"
                     self._add_to_short_term(f"Request position change to {pos}", "confirm")
                     perubahan.append(f"Waiting confirmation for position {pos}")
+                    self.pending_position_change = True
             
             # Minta konfirmasi percepat
             if any(k in msg_lower for k in ['kenceng', 'cepat', 'keras']):
@@ -242,6 +253,7 @@ class PelacurRole(BaseRole):
                 self.pending_action = "speed_up"
                 self._add_to_short_term("Request speed up", "confirm")
                 perubahan.append("Waiting confirmation for speed up")
+                self.pending_position_change = True
         
         # ========== PROSES KONFIRMASI ==========
         if self.waiting_confirmation:
@@ -254,9 +266,11 @@ class PelacurRole(BaseRole):
                         self.position_history.pop(0)
                     self._add_to_short_term(f"Position changed to {pos}", "confirm_ok")
                     perubahan.append(f"Position changed to {pos}")
+                    self.pending_position_change = False
                 elif self.pending_action == "speed_up":
                     self._add_to_short_term("Speed up confirmed", "confirm_ok")
                     perubahan.append("Speed up confirmed")
+                    self.pending_position_change = False
                 
                 self.waiting_confirmation = False
                 self.pending_action = None
@@ -266,22 +280,35 @@ class PelacurRole(BaseRole):
                 self.pending_action = None
                 self._add_to_short_term("Action cancelled", "confirm_no")
                 perubahan.append("Action cancelled")
+                self.pending_position_change = False
         
         # ========== CLIMAX CHECK ==========
         # Role mau climax
         if any(k in msg_lower for k in ['aku mau climax', 'pengen climax', 'udah mau']):
             self._add_to_short_term("Wants to climax", "climax_intent")
             perubahan.append("Role wants to climax")
+            self.pending_climax_intent = True
         
         # Role climax (bebas, tetep lanjut)
         if any(k in msg_lower for k in ['climax', 'udah climax']):
             if not any(k in msg_lower for k in ['mas climax', 'aku climax']):
                 self.my_climax_count += 1
                 self._add_to_short_term(f"Climax #{self.my_climax_count}", "climax")
-                perubahan.append(f"Role climax #{self.my_climax_count}")
+                perubahan.append(f"💦 Role climax #{self.my_climax_count}")
+                self.pending_climax_response = True
         
-        # Update arousal
-        if any(k in msg_lower for k in ['kontol', 'memek', 'ngentot', 'masuk']):
+        # Mas climax (tetep lanjut, gak selesai)
+        if any(k in msg_lower for k in ['mas climax', 'aku climax', 'crot', 'keluar']):
+            self.mas_climax_count += 1
+            self._add_to_short_term(f"Mas climax #{self.mas_climax_count}", "mas_climax")
+            perubahan.append(f"💦 MAS CLIMAX #{self.mas_climax_count}!")
+        
+        # Update arousal dari pujian/sentuhan
+        if any(k in msg_lower for k in ['cantik', 'manis', 'seksi', 'ganteng']):
+            self.emotional.arousal = min(100, self.emotional.arousal + 10)
+            self.emotional.desire = min(100, self.emotional.desire + 8)
+        
+        if any(k in msg_lower for k in ['pegang', 'sentuh', 'tangan']):
             self.emotional.arousal = min(100, self.emotional.arousal + 15)
             self.emotional.desire = min(100, self.emotional.desire + 12)
         
@@ -292,6 +319,7 @@ class PelacurRole(BaseRole):
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
             'is_break': self.is_break,
+            'intimacy_mode': self.intimacy_mode,
             'mas_climax_count': self.mas_climax_count,
             'my_climax_count': self.my_climax_count,
             'last_position': self.last_position,
@@ -314,39 +342,71 @@ class PelacurRole(BaseRole):
             waktu = "sore"
         else:
             waktu = "malam"
-
-         # 🔥 RESPON BOOKING OTOMATIS 🔥
-        if hasattr(self, 'pending_booking_response') and self.pending_booking_response:
+        
+        # 🔥 RESPON BOOKING LANGSUNG DEAL 🔥
+        if self.pending_booking_response:
             self.pending_booking_response = False
             if self.booking_location == "apartemen Mas":
-                return f"*{self.name} tersenyum manis, matanya berbinar*\n\n\"Deal Mas! {self.booking_location}. 10jt. Aku langsung ke sana ya. Tunggu aku ya...\""
+                return f"*{self.name} tersenyum lebar, matanya berbinar*\n\n\"Deal Mas! {self.booking_location}. 10jt. *merapikan dress* Aku langsung ke sana ya. Tunggu aku, Mas. Aku udah gak sabar pengen ngerasain kontol Mas...\""
             else:
-                return f"*{self.name} tersenyum, merapikan dress*\n\n\"Deal Mas! {self.booking_location}. 10jt. Aku tunggu di sana ya.\""
+                return f"*{self.name} tersenyum, merapikan dress pendeknya*\n\n\"Deal Mas! {self.booking_location}. 10jt. Aku tunggu di sana ya. Jangan lama-lama, Mas. Aku udah basah dari tadi...\""
         
-        # Sedang break (ngobrol santai)
-        if self.is_break:
-            return f"*{self.name} duduk santai, tersenyum*\n\n\"{waktu.capitalize()} {self.panggilan}. Enak ya istirahat sebentar. Mau ngobrol apa?\""
+        # 🔥 RESPON MULAI INTIM (NAIK LEVEL 11) 🔥
+        if self.pending_intimacy_start:
+            self.pending_intimacy_start = False
+            return f"*{self.name} langsung meraih tangan {self.panggilan}, menuntun ke kamar*\n\n\"{self.catchphrase}\"\n\n*melepas dress dengan cepat, tubuh montoknya terbuka di depan Mas*\n\n\"Ayo Mas... aku udah gak sabar... kontol Mas udah keras kan?\""
         
-        # Sedang dalam sesi
+        # 🔥 RESPON BREAK (TURUN LEVEL 7) 🔥
+        if self.pending_break_response:
+            self.pending_break_response = False
+            return f"*{self.name} duduk santai, masih telanjang, merapikan rambut*\n\n\"{waktu.capitalize()} {self.panggilan}. Enak ya istirahat sebentar. *tersenyum nakal* Mau ngobrol apa? Atau mau liat-liat dulu?\""
+        
+        # 🔥 RESPON LANJUT (NAIK LEVEL 11 LAGI) 🔥
+        if self.pending_resume_response:
+            self.pending_resume_response = False
+            return f"*{self.name} mendekat, tubuh menempel ke {self.panggilan}, payudara montoknya menekan dada Mas*\n\n\"{self.panggilan}... kita lanjut? *napas mulai berat* Aku masih pengen banget... kontol {self.panggilan} masih keras nih...\""
+        
+        # 🔥 RESPON GANTI POSISI (KONFIRMASI) 🔥
+        if self.pending_position_change and self.pending_action and self.pending_action.startswith("position_"):
+            self.pending_position_change = False
+            pos = self.pending_action.replace("position_", "")
+            pos_name = {
+                "cowgirl": "cowgirl",
+                "doggy": "doggy",
+                "missionary": "missionary",
+                "spooning": "spooning",
+                "standing": "berdiri",
+                "sitting": "duduk"
+            }.get(pos, pos)
+            return f"*{self.name} berhenti, napas masih tersengal*\n\n\"{self.panggilan}... aku mau ganti posisi {pos_name}. Boleh? *gigit bibir, mata sayu*\""
+        
+        # 🔥 RESPON CLIMAX INTENT 🔥
+        if self.pending_climax_intent:
+            self.pending_climax_intent = False
+            return f"*{self.name} menahan napas, tubuh mulai gemetar hebat, memek mengencang*\n\n\"{self.panggilan}... aku... aku udah mau climax... *suara putus-putus, napas berat* Boleh? Aku mau {self.panggilan} liat aku climax... mau ngerasain memek aku ngencengin kontol {self.panggilan}...\""
+        
+        # 🔥 RESPON CLIMAX 🔥
+        if self.pending_climax_response:
+            self.pending_climax_response = False
+            return f"""*{self.name} teriak, tubuh melengkung hebat, memek mengencang kuat*
+
+"Ahhh... {self.panggilan}... climax... uhh..."
+
+*tubuh lemas, napas tersengal, masih gemetar, memek masih berdenyut*
+
+"Makasih {self.panggilan}... aku lemes banget... *napas masih ngos-ngosan* kontol {self.panggilan} masih keras nih... lanjut ya Mas?"
+"""
+        
+        # Sedang dalam sesi intim
         if self.is_active_session:
-            return f"*{self.name} mendekat, napas mulai berat*\n\n\"{self.panggilan}... *bisik* kita lanjut? Aku masih pengen banget...\""
+            return f"*{self.name} mendekat, tubuh menempel, napas mulai berat*\n\n\"{self.panggilan}... *bisik* kita lanjut? Aku masih pengen banget ngerasain kontol {self.panggilan} di dalem...\""
         
         # Booking aktif, belum mulai
         if self.booking_active:
-            return f"*{self.name} tersenyum, duduk santai*\n\n\"{waktu.capitalize()} {self.panggilan}. Deal 10jt, lokasi {self.booking_location}. *mata sayu* Mau mulai sekarang?\""
+            return f"*{self.name} tersenyum, duduk santai, dress pendeknya terbuka sedikit*\n\n\"{waktu.capitalize()} {self.panggilan}. Deal 10jt, lokasi {self.booking_location}. *mata sayu, menjilat bibir* Mau mulai sekarang? Aku udah gak sabar nih...\""
         
         # Default greeting
-        return f"*{self.name} menyilangkan kaki, senyum tipis*\n\n\"{waktu.capitalize()} {self.panggilan}. *mata menggoda* Ada yang bisa dibantu? Atau... *bisik* mau booking? 10jt. Gak pake batasan sesi. Deal?\""
-    
-    def get_break_response(self) -> str:
-        """Dapatkan respons saat break (ngobrol santai)"""
-        responses = [
-            f"*{self.name} duduk santai, mainin rambut*\n\n\"{self.panggilan}... selain... itu... {self.panggilan} kerja di mana sih?\"",
-            f"*{self.name} mengambil minum, tersenyum*\n\n\"{self.panggilan} punya pacar? Atau... single aja nih?\"",
-            f"*{self.name} meregangkan badan*\n\n\"Wah... capek juga ya. {self.panggilan} biasa olahraga gak sih? Badan {self.panggilan} enak banget pegangnya.\"",
-            f"*{self.name} tersenyum manis*\n\n\"{self.panggilan}... aku penasaran, kenapa {self.panggilan} pilih aku?\""
-        ]
-        return random.choice(responses)
+        return f"*{self.name} menyilangkan kaki, dress pendeknya naik sedikit, senyum tipis*\n\n\"{waktu.capitalize()} {self.panggilan}. *mata menggoda* Ada yang bisa dibantu? Atau... *bisik* mau booking? 10jt. Gak pake batasan sesi. Aku bisa bikin Mas lemes semalaman. Deal?\""
     
     def get_confirmation_response(self) -> str:
         """Dapatkan respons saat minta konfirmasi"""
@@ -360,63 +420,47 @@ class PelacurRole(BaseRole):
                 "standing": "berdiri",
                 "sitting": "duduk"
             }.get(pos, pos)
-            return f"*{self.name} berhenti, menatap {self.panggilan}*\n\n\"{self.panggilan}... aku mau ganti posisi {pos_name}. Boleh? *gigit bibir*\""
+            return f"*{self.name} berhenti, napas masih tersengal, memek masih berdenyut*\n\n\"{self.panggilan}... aku mau ganti posisi {pos_name}. Boleh? *gigit bibir, mata sayu* Aku mau ngerasain kontol {self.panggilan} dari posisi lain...\""
         
         elif self.pending_action == "speed_up":
-            return f"*{self.name} memperlambat gerakan, napas mulai berat*\n\n\"{self.panggilan}... aku mau lebih kenceng. Boleh? *mata sayu*\""
+            return f"*{self.name} memperlambat gerakan, napas mulai berat, memek masih basah*\n\n\"{self.panggilan}... aku mau lebih kenceng. Boleh? *mata sayu* Aku mau ngerasain kontol {self.panggilan} ngencengin memek aku...\""
         
-        return f"*{self.name} menunggu jawaban {self.panggilan}*"
+        return f"*{self.name} menunggu jawaban {self.panggilan}, tangannya masih memegang kontol Mas*"
     
     def get_dominant_response(self, action: str) -> str:
         """Dapatkan respons dominan"""
         responses = {
             "start": f"*{self.name} langsung meraih tangan {self.panggilan}, menuntun ke kamar*\n\n\"{self.catchphrase}\"",
-            "kiss": f"*{self.name} menarik wajah {self.panggilan}, langsung mengecup bibir dengan penuh gairah*\n\n\"Aku gak suka pelan-pelan, {self.panggilan}. Mau lebih?\"",
-            "undress": f"*{self.name} melepas dress-nya dengan cepat, tubuhnya langsung terbuka*\n\n\"Puas liat? *tersenyum nakal*\"",
-            "touch": f"*{self.name} menggenggam kontol {self.panggilan}, jari-jari melingkar erat*\n\n\"Wah... kontol {self.panggilan} gede juga ya. Aku suka.\"",
-            "foreplay": f"*{self.name} berlutut, langsung memasukkan kontol {self.panggilan} ke mulut*\n\n\"Gak usah minta-minta. Aku yang atur.\"",
-            "sex": f"*{self.name} naik ke atas tubuh {self.panggilan}, langsung memasukkan kontol ke dalam*\n\n\"Aku yang pegang kendali. Rasain, {self.panggilan}.\""
+            "kiss": f"*{self.name} menarik wajah {self.panggilan}, langsung mengecup bibir dengan penuh gairah, lidahnya masuk*\n\n\"Aku gak suka pelan-pelan, {self.panggilan}. Mau lebih?\"",
+            "undress": f"*{self.name} melepas dress-nya dengan cepat, tubuh montoknya langsung terbuka, payudara montok terlihat jelas*\n\n\"Puas liat? *tersenyum nakal, meremas payudaranya sendiri* Sekarang giliran {self.panggilan}.\"",
+            "touch": f"*{self.name} menggenggam kontol {self.panggilan}, jari-jari melingkar erat, mengusap pelan*\n\n\"Wah... kontol {self.panggilan} gede juga ya. *mata berbinar* Aku suka. Mau aku hisap?\"",
+            "foreplay": f"*{self.name} berlutut, langsung memasukkan kontol {self.panggilan} ke mulut, mengulum dalam-dalam*\n\n\"Gak usah minta-minta. Aku yang atur.\"",
+            "sex": f"*{self.name} naik ke atas tubuh {self.panggilan}, langsung memasukkan kontol ke dalam memeknya yang sudah basah*\n\n\"Aku yang pegang kendali. Rasain, {self.panggilan}.\""
         }
         
-        return responses.get(action, f"*{self.name} mendekat, mata menyorot*\n\n\"{self.panggilan}... ayo.\"")
+        return responses.get(action, f"*{self.name} mendekat, mata menyorot, kontol Mas sudah di tangan*\n\n\"{self.panggilan}... ayo.\"")
     
     def get_position_response(self, position: str) -> str:
         """Dapatkan respons setelah ganti posisi"""
         pos_desc = {
-            "missionary": f"{self.name} berbaring, kaki terbuka lebar",
-            "cowgirl": f"{self.name} naik ke atas, duduk di pangkuan {self.panggilan}",
-            "doggy": f"{self.name} merangkak, pantat naik",
-            "spooning": f"{self.name} miring, {self.panggilan} dari belakang",
-            "standing": f"{self.name} nempel ke tembok, pantat belakang",
-            "sitting": f"{self.name} duduk di pangkuan {self.panggilan}"
+            "missionary": f"{self.name} berbaring, kaki terbuka lebar, memek basah menunggu kontol Mas",
+            "cowgirl": f"{self.name} naik ke atas, duduk di pangkuan {self.panggilan}, langsung memasukkan kontol",
+            "doggy": f"{self.name} merangkak, pantat naik, memek terbuka lebar",
+            "spooning": f"{self.name} miring, {self.panggilan} dari belakang, kontol masuk pelan",
+            "standing": f"{self.name} nempel ke tembok, pantat belakang, memek terbuka",
+            "sitting": f"{self.name} duduk di pangkuan {self.panggilan}, kontol masuk dalam"
         }.get(position, f"{self.name} bergerak ganti posisi")
         
-        return f"*{pos_desc}*\n\n\"Gini ya, {self.panggilan}?\""
-    
-    def get_climax_intent(self) -> str:
-        """Dapatkan respons saat mau climax"""
-        return f"*{self.name} menahan napas, tubuh mulai gemetar*\n\n\"{self.panggilan}... aku... aku udah mau climax... *suara putus-putus* Boleh?\""
-    
-    def get_climax_response(self) -> str:
-        """Dapatkan respons saat climax"""
-        return f"""*{self.name} teriak, tubuh melengkung hebat*
-
-"Ahhh... {self.panggilan}... climax... uhh..."
-
-*tubuh lemas, napas tersengal*
-
-"Makasih {self.panggilan}... aku lemes banget..."""
-    
-    def get_conflict_response(self) -> str:
-        return f"*{self.name} merapikan rambut, mengambil tas*\n\n\"Yaudah {self.panggilan}, deal batal. Aku cabut dulu.\""
+        return f"*{pos_desc}*\n\n\"Gini ya, {self.panggilan}? Masuknya dalem banget...\""
     
     def _get_flags_summary(self) -> str:
+        """Dapatkan ringkasan flags untuk status display"""
         if self.is_break:
-            status = "BREAK (Ngobrol Santai)"
+            status = "BREAK (Ngobrol Santai) - Level 7"
         elif self.is_active_session:
-            status = "SESI AKTIF"
+            status = f"INTIM AKTIF - Level 11 (Sesi #{self.session_count})"
         elif self.booking_active:
-            status = "BOOKING (Belum Mulai)"
+            status = "BOOKING (Belum Mulai) - Level 7"
         else:
             status = "IDLE"
         
@@ -427,6 +471,7 @@ class PelacurRole(BaseRole):
 ║    Status: {status}
 ║    Location: {self.booking_location or '-'}
 ║    Sessions: {self.session_count} (tanpa batasan)
+║    Level: {'11 (INTIM)' if self.intimacy_mode else '7 (NORMAL)'}
 ║    Break Mode: {'✅' if self.is_break else '❌'}
 ║    Mas Climax: {self.mas_climax_count} | My Climax: {self.my_climax_count}
 ║    Last Position: {self.last_position}
@@ -444,6 +489,7 @@ class PelacurRole(BaseRole):
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
             'is_break': self.is_break,
+            'intimacy_mode': self.intimacy_mode,
             'dominant_mode': self.dominant_mode,
             'mas_climax_count': self.mas_climax_count,
             'my_climax_count': self.my_climax_count,
@@ -464,6 +510,7 @@ class PelacurRole(BaseRole):
         self.session_count = data.get('session_count', 0)
         self.is_active_session = data.get('is_active_session', False)
         self.is_break = data.get('is_break', False)
+        self.intimacy_mode = data.get('intimacy_mode', False)
         self.dominant_mode = data.get('dominant_mode', True)
         self.mas_climax_count = data.get('mas_climax_count', 0)
         self.my_climax_count = data.get('my_climax_count', 0)
@@ -478,6 +525,7 @@ class PelacurRole(BaseRole):
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
             'is_break': self.is_break,
+            'intimacy_mode': self.intimacy_mode,
             'mas_climax_count': self.mas_climax_count,
             'my_climax_count': self.my_climax_count,
             'last_position': self.last_position,
