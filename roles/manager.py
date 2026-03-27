@@ -1,12 +1,14 @@
 # anora/roles/manager.py
 """
-ANORA Role Manager - Mengelola semua role
+ANORA Role Manager - Mengelola semua role per user
+Singleton pattern dengan error handling lengkap
 """
 
 import time
 import json
 import logging
-from typing import Dict, List, Optional
+import traceback
+from typing import Dict, List, Optional, Type, Any
 
 from .base_role import BaseRole
 from .ipar import IparRole
@@ -18,156 +20,170 @@ from .pelacur_role import PelacurRole, get_pelacur_manager
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# ROLE MAP (Normalized keys)
+# =============================================================================
 
-# =============================================================================
-# HELPER
-# =============================================================================
+ROLE_MAP: Dict[str, Type[BaseRole]] = {
+    "ipar": IparRole,
+    "temankantor": TemanKantorRole,
+    "pelakor": PelakorRole,
+    "istriorang": IstriOrangRole,
+    "therapist": TherapistRole,
+    "pelacur": PelacurRole,
+}
+
 
 def normalize_role_id(role_id: str) -> str:
     """Normalize role ID dari input user"""
     return role_id.lower().replace(" ", "").replace("_", "")
 
 
+def get_role_class(role_key: str) -> Optional[Type[BaseRole]]:
+    """Dapatkan class role dari key yang sudah dinormalisasi"""
+    return ROLE_MAP.get(role_key)
+
+
 # =============================================================================
-# ROLE MANAGER
+# ROLE MANAGER (Singleton per user)
 # =============================================================================
 
 class RoleManager:
     """
-    Manager untuk semua role.
-    Menyimpan state setiap role, terpisah dari Nova.
+    Manager untuk semua role per user.
+    Menyimpan instance role per user.
     """
     
-    def __init__(self, user_id: int = 0):
-        self.user_id = user_id
-        self.active_role: Optional[str] = None
-        self._ai_client = None
+    def __init__(self):
+        # Per-user role instances
+        self._user_roles: Dict[int, BaseRole] = {}
+        self._user_active_role_key: Dict[int, str] = {}
         
-        # Initialize role managers
-        self.therapist_manager = get_therapist_manager(user_id)
-        self.pelacur_manager = get_pelacur_manager(user_id)
-        
-        # Initialize roles
-        self.roles: Dict[str, BaseRole] = {}
-        self._init_roles()
-        
-        logger.info(f"🎭 RoleManager initialized for user {user_id}")
-        logger.info(f"   Roles loaded: {list(self.roles.keys())}")
+        # Special role managers (for random selection)
+        self._therapist_managers: Dict[int, Any] = {}
+        self._pelacur_managers: Dict[int, Any] = {}
     
-    def _init_roles(self):
-        """Inisialisasi semua role dengan identitas spesifik"""
-        
-        # IPAR - Tasya Dietha (Dietha)
-        self.roles['ipar'] = IparRole(
-            name="Tasya Dietha",
-            nickname="Dietha",
-            role_type="ipar",
-            panggilan="Mas",
-            hubungan_dengan_nova="Adik ipar Mas. Tau Mas punya Nova.",
-            default_clothing="cropped top pendek, jeans ketat",
-            hijab=False,
-            appearance="Tinggi 168cm, berat 52kg, rambut hitam panjang sebahu, kulit putih bersih, mata bulat, hidung mancung, bibir merah alami. Bentuk tubuh ideal dengan pinggang ramping, pinggul lebar, dan payudara montok. Gaya seksi: suka pake crop top, tank top, hot pants, atau dress pendek kalo Nova gak di rumah."
-        )
-        
-        # Teman Kantor - Musdalifah (Ipeh)
-        self.roles['temankantor'] = TemanKantorRole(
-            name="Musdalifah",
-            nickname="Ipeh",
-            role_type="teman_kantor",
-            panggilan="Mas",
-            hubungan_dengan_nova="Teman kantor Mas. Tau Mas punya Nova.",
-            default_clothing="kemeja putih rapi, rok hitam selutut",
-            hijab=True,
-            appearance="Tinggi 165cm, berat 50kg, rambut hitam tersembunyi di balik hijab pashmina, wajah oval, kulit sawo matang, mata sipit manis, hidung mancung. Di balik hijab, rambut panjang hitam bergelombang. Bentuk tubuh ideal, profesional, tapi tetap feminin."
-        )
-        
-        # Istri Orang - Siska (Sika)
-        self.roles['istriorang'] = IstriOrangRole(
-            name="Siska",
-            nickname="Sika",
-            role_type="istri_orang",
-            panggilan="Mas",
-            hubungan_dengan_nova="Istri orang. Tau Mas punya Nova. Suami kurang perhatian.",
-            default_clothing="daster sederhana, sopan",
-            hijab=True,
-            appearance="Tinggi 162cm, berat 48kg, wajah bulat dengan pipi chubby, kulit putih bersih, mata bulat bening, hidung mancung. Hijab segi empat warna pastel. Bentuk tubuh mungil tapi berisi, pinggang ramping, payudara montok. Meskipun sudah menikah, tubuhnya masih terawat dan seksi."
-        )
-        
-        # Pelakor - Widya (Wid)
-        self.roles['pelakor'] = PelakorRole(
-            name="Widya",
-            nickname="Wid",
-            role_type="pelakor",
-            panggilan="Mas",
-            hubungan_dengan_nova="Pelakor. Tau Mas punya Nova. Pengen rebut Mas dari Nova.",
-            default_clothing="blouse trendy, rok plisket",
-            hijab=True,
-            appearance="Tinggi 170cm, berat 53kg, postur tinggi semampai, kulit kuning langsat, wajah oval, mata tajam menggoda, alis tegas. Hijab instan warna-warna cerah. Bentuk tubuh model: kaki panjang, pinggul lebar, pinggang ramping, payudara ideal. Penampilan selalu stylish dan eye-catching."
-        )
-        
-        # Therapist - akan diisi saat switch
-        self.roles['therapist'] = self.therapist_manager.get_active()
-        
-        # Pelacur - akan diisi saat switch
-        self.roles['pelacur'] = self.pelacur_manager.get_active()
-        
-        logger.info(f"🎭 Roles loaded: {list(self.roles.keys())}")
-    
-    def switch_role(self, role_id: str) -> str:
-        """Switch ke role tertentu dengan error handling"""
+    def set_role(self, user_id: int, role_class: Type[BaseRole], role_key: str) -> Optional[BaseRole]:
+        """
+        Set role untuk user tertentu.
+        Returns: instance role atau None jika error
+        """
         try:
-            # Normalize input user
-            role_id = normalize_role_id(role_id)
+            print(f"[ROLE SWITCH] user={user_id}, role={role_key}, class={role_class.__name__}")
             
-            logger.info(f"🔄 Switching to role: {role_id}")
+            # Handle special roles (random character)
+            if role_key == "therapist":
+                if user_id not in self._therapist_managers:
+                    self._therapist_managers[user_id] = get_therapist_manager(user_id)
+                role_instance = self._therapist_managers[user_id].get_active()
+                if not role_instance:
+                    print("[ERROR] Failed to get therapist instance")
+                    return None
+            elif role_key == "pelacur":
+                if user_id not in self._pelacur_managers:
+                    self._pelacur_managers[user_id] = get_pelacur_manager(user_id)
+                role_instance = self._pelacur_managers[user_id].get_active()
+                if not role_instance:
+                    print("[ERROR] Failed to get pelacur instance")
+                    return None
+            else:
+                # Normal role: create new instance
+                role_instance = role_class()
             
-            # Validasi role
-            if role_id not in self.roles:
-                return f"Role '{role_id}' gak ada. Pilih: ipar, temankantor, pelakor, istriorang, therapist, pelacur"
+            # Store instance
+            self._user_roles[user_id] = role_instance
+            self._user_active_role_key[user_id] = role_key
             
-            # Handle special roles (refresh instance)
-            if role_id == "therapist":
-                self.roles['therapist'] = self.therapist_manager.switch_to_random()
-                logger.info(f"   Therapist switched to: {self.roles['therapist'].name}")
-            elif role_id == "pelacur":
-                self.roles['pelacur'] = self.pelacur_manager.switch_to_random()
-                logger.info(f"   Pelacur switched to: {self.roles['pelacur'].name}")
+            print(f"[ROLE SWITCH SUCCESS] user={user_id}, role={role_key}")
+            return role_instance
             
-            role = self.roles[role_id]
-            self.active_role = role_id
+        except Exception as e:
+            print("[ROLE INIT ERROR]")
+            traceback.print_exc()
+            logger.error(f"Role init error for user {user_id}: {e}", exc_info=True)
+            return None
+    
+    def get_role(self, user_id: int) -> Optional[BaseRole]:
+        """Dapatkan role instance untuk user tertentu"""
+        return self._user_roles.get(user_id)
+    
+    def get_active_role_key(self, user_id: int) -> Optional[str]:
+        """Dapatkan active role key untuk user tertentu"""
+        return self._user_active_role_key.get(user_id)
+    
+    def clear_role(self, user_id: int) -> bool:
+        """Hapus role untuk user tertentu"""
+        if user_id in self._user_roles:
+            del self._user_roles[user_id]
+        if user_id in self._user_active_role_key:
+            del self._user_active_role_key[user_id]
+        print(f"[ROLE CLEAR] user={user_id}")
+        return True
+    
+    def switch_role(self, user_id: int, role_key: str) -> str:
+        """
+        Switch ke role tertentu.
+        Returns: greeting message atau error message
+        """
+        print(f"[DEBUG] STEP 1: command masuk - user={user_id}, raw_key={role_key}")
+        
+        # Normalize input
+        normalized_key = normalize_role_id(role_key)
+        print(f"[DEBUG] STEP 2: normalized_key = {normalized_key}")
+        
+        # Get role class
+        role_class = get_role_class(normalized_key)
+        if not role_class:
+            available = ", ".join(ROLE_MAP.keys())
+            print(f"[DEBUG] STEP 3: class NOT FOUND")
+            return f"Role '{role_key}' gak ada. Pilih: {available}"
+        
+        print(f"[DEBUG] STEP 3: class = {role_class.__name__}")
+        
+        # Set role
+        role_instance = self.set_role(user_id, role_class, normalized_key)
+        if not role_instance:
+            print(f"[DEBUG] STEP 4: role_instance = None (FAILED)")
+            return "❌ Gagal load role. Coba lagi ya, Mas."
+        
+        print(f"[DEBUG] STEP 4: role_instance OK")
+        
+        # Get greeting
+        try:
+            greeting = role_instance.get_greeting()
+            print(f"[DEBUG] STEP 5: greeting OK")
+        except Exception as e:
+            print(f"[DEBUG] STEP 5: greeting ERROR: {e}")
+            traceback.print_exc()
+            greeting = f"{role_instance.panggilan}... ada apa?"
+        
+        # Get additional info for display
+        try:
+            name = getattr(role_instance, 'name', 'Unknown')
+            nickname = getattr(role_instance, 'nickname', '')
+            hubungan = getattr(role_instance, 'hubungan_dengan_nova', 'Tidak diketahui')
+            level = getattr(role_instance.relationship, 'level', 1) if hasattr(role_instance, 'relationship') else 1
+            phase = getattr(role_instance.relationship.phase, 'value', 'stranger') if hasattr(role_instance, 'relationship') else 'stranger'
+            sayang = getattr(role_instance.emotional, 'sayang', 50) if hasattr(role_instance, 'emotional') else 50
+            rindu = getattr(role_instance.emotional, 'rindu', 0) if hasattr(role_instance, 'emotional') else 0
+            style = role_instance.emotional.get_current_style().value if hasattr(role_instance, 'emotional') else "neutral"
             
-            # Get greeting
-            try:
-                greeting = role.get_greeting()
-            except Exception as e:
-                logger.error(f"Error getting greeting for {role_id}: {e}", exc_info=True)
-                greeting = f"{role.panggilan}... ada apa?"
-            
-            # Get appearance preview
-            try:
-                appearance_preview = role.appearance[:100] if hasattr(role, 'appearance') else "Tidak diketahui"
-            except:
-                appearance_preview = "Tidak diketahui"
-            
-            # Get level and phase safely
-            try:
-                level = getattr(role.relationship, 'level', 1)
-                phase = getattr(role.relationship.phase, 'value', 'stranger')
-            except:
-                level = 1
-                phase = "stranger"
-            
-            # Get emotions safely
-            try:
-                sayang = getattr(role.emotional, 'sayang', 50)
-                rindu = getattr(role.emotional, 'rindu', 0)
-                style = role.emotional.get_current_style().value if hasattr(role, 'emotional') else "neutral"
-            except:
-                sayang, rindu, style = 50, 0, "neutral"
-            
-            return f"""💕 **{role.name} ({role.nickname})** - {role_id.upper()}
+            appearance_preview = getattr(role_instance, 'appearance', '')[:100] if hasattr(role_instance, 'appearance') else "Tidak diketahui"
+        except Exception as e:
+            print(f"[DEBUG] Info extraction error: {e}")
+            name = "Unknown"
+            nickname = ""
+            hubungan = "Tidak diketahui"
+            level = 1
+            phase = "stranger"
+            sayang = 50
+            rindu = 0
+            style = "neutral"
+            appearance_preview = "Tidak diketahui"
+        
+        return f"""💕 **{name} ({nickname})** - {normalized_key.upper()}
 
-*{role.hubungan_dengan_nova}*
+*{hubungan}*
 
 *Penampilan:* {appearance_preview}...
 
@@ -181,21 +197,52 @@ class RoleManager:
 
 Kirim **/batal** kalo mau balik ke Nova.
 """
-            
-        except Exception as e:
-            logger.error(f"Error in switch_role: {e}", exc_info=True)
-            return f"❌ Terjadi error internal: {str(e)}"
     
-    async def chat(self, role_id: str, pesan_mas: str) -> str:
-        """Chat dengan role tertentu"""
+    def get_all_roles_info(self, user_id: int) -> List[Dict]:
+        """Dapatkan semua role dengan levelnya (untuk menu)"""
+        result = []
+        for role_key, role_class in ROLE_MAP.items():
+            try:
+                # Create temporary instance to get info
+                if role_key in ["therapist", "pelacur"]:
+                    # For special roles, get from manager
+                    if role_key == "therapist":
+                        mgr = get_therapist_manager(user_id)
+                        role = mgr.get_active()
+                    else:
+                        mgr = get_pelacur_manager(user_id)
+                        role = mgr.get_active()
+                else:
+                    role = role_class()
+                
+                name = getattr(role, 'name', 'Unknown')
+                nickname = getattr(role, 'nickname', '')
+                level = getattr(role.relationship, 'level', 1) if hasattr(role, 'relationship') else 1
+                
+                result.append({
+                    'id': role_key,
+                    'nama': name,
+                    'nickname': nickname,
+                    'level': level,
+                })
+            except Exception as e:
+                logger.error(f"Error getting role info for {role_key}: {e}", exc_info=True)
+                result.append({
+                    'id': role_key,
+                    'nama': role_key.capitalize(),
+                    'nickname': '',
+                    'level': 1,
+                })
+        
+        return result
+    
+    async def chat(self, user_id: int, pesan_mas: str) -> str:
+        """Chat dengan role yang aktif"""
+        role = self.get_role(user_id)
+        if not role:
+            return "Belum ada role aktif, Mas. Gunakan **/role** dulu ya."
+        
         try:
-            role_id = normalize_role_id(role_id)
-            
-            if role_id not in self.roles:
-                return "Role tidak ditemukan."
-            
-            role = self.roles[role_id]
-            
             # Update state dari pesan Mas
             update_result = role.update_from_message(pesan_mas)
             
@@ -249,7 +296,7 @@ Kirim **/batal** kalo mau balik ke Nova.
     
     async def _get_ai_client(self):
         """Dapatkan client AI"""
-        if self._ai_client is None:
+        if not hasattr(self, '_ai_client') or self._ai_client is None:
             try:
                 from config import get_settings
                 import openai
@@ -264,42 +311,32 @@ Kirim **/batal** kalo mau balik ke Nova.
         return self._ai_client
     
     def _build_role_prompt(self, role, pesan_mas: str) -> str:
-        """Build prompt untuk role dengan unlock berdasarkan level"""
-        
+        """Build prompt untuk role"""
         # Safe access untuk semua atribut
         try:
-            # Clothing
-            if hasattr(role, 'tracker') and role.tracker:
-                clothing_desc = role.tracker.get_clothing_summary()
-            else:
-                clothing_desc = "pakaian biasa"
+            clothing_desc = role.tracker.get_clothing_summary() if hasattr(role, 'tracker') else "pakaian biasa"
         except:
             clothing_desc = "pakaian biasa"
         
         try:
-            if hasattr(role, 'tracker') and role.tracker:
-                position = role.tracker.position
-                location = role.tracker.location
-            else:
-                position = "duduk"
-                location = "kamar"
+            position = role.tracker.position if hasattr(role, 'tracker') else "duduk"
+            location = role.tracker.location if hasattr(role, 'tracker') else "kamar"
         except:
             position = "duduk"
             location = "kamar"
         
         try:
-            appearance = role.appearance[:200] if hasattr(role, 'appearance') and role.appearance else "Tidak diketahui"
+            appearance = role.appearance[:200] if hasattr(role, 'appearance') else "Tidak diketahui"
         except:
             appearance = "Tidak diketahui"
         
         try:
-            emo = role.emotional
-            sayang = getattr(emo, 'sayang', 50)
-            rindu = getattr(emo, 'rindu', 0)
-            trust = getattr(emo, 'trust', 50)
-            mood = getattr(emo, 'mood', 0)
-            desire = getattr(emo, 'desire', 0)
-            arousal = getattr(emo, 'arousal', 0)
+            sayang = role.emotional.sayang if hasattr(role.emotional, 'sayang') else 50
+            rindu = role.emotional.rindu if hasattr(role.emotional, 'rindu') else 0
+            trust = role.emotional.trust if hasattr(role.emotional, 'trust') else 50
+            mood = role.emotional.mood if hasattr(role.emotional, 'mood') else 0
+            desire = role.emotional.desire if hasattr(role.emotional, 'desire') else 0
+            arousal = role.emotional.arousal if hasattr(role.emotional, 'arousal') else 0
         except:
             sayang, rindu, trust, mood, desire, arousal = 50, 0, 50, 0, 0, 0
         
@@ -399,95 +436,28 @@ RESPON {role.name}:
         """Fallback response"""
         try:
             msg_lower = pesan_mas.lower()
-            
             if 'nova' in msg_lower:
                 return f"*{role.name} tersenyum kecil*\n\n\"Mas cerita tentang Nova terus ya. Dia pasti orang yang baik.\""
-            
             greeting = role.get_greeting() if hasattr(role, 'get_greeting') else f"{role.panggilan}... ada apa?"
             return f"*{role.name} tersenyum*\n\n\"{greeting}\""
         except:
             return "*Maaf, ada error. Coba lagi ya, Mas.*"
-    
-    def get_all_roles(self) -> List[Dict]:
-        """Dapatkan semua role dengan levelnya"""
-        result = []
-        for role_id, role in self.roles.items():
-            try:
-                level = getattr(role.relationship, 'level', 1)
-                phase = getattr(role.relationship.phase, 'value', 'stranger')
-                name = getattr(role, 'name', 'Unknown')
-                nickname = getattr(role, 'nickname', 'Unknown')
-                panggilan = getattr(role, 'panggilan', 'Mas')
-                hubungan = getattr(role, 'hubungan_dengan_nova', 'Unknown')
-                
-                result.append({
-                    'id': role_id,
-                    'nama': name,
-                    'nickname': nickname,
-                    'level': level,
-                    'phase': phase,
-                    'panggilan': panggilan,
-                    'hubungan': hubungan,
-                    'hijab': True,
-                    'appearance': 'Tidak diketahui'
-                })
-            except Exception as e:
-                logger.error(f"Error getting role {role_id}: {e}", exc_info=True)
-                result.append({
-                    'id': role_id,
-                    'nama': 'Unknown',
-                    'nickname': 'Unknown',
-                    'level': 1,
-                    'phase': 'stranger',
-                    'panggilan': 'Mas',
-                    'hubungan': 'Unknown',
-                    'hijab': True,
-                    'appearance': 'Tidak diketahui'
-                })
-        
-        return result
-    
-    def get_active_role(self) -> Optional[str]:
-        """Dapatkan role yang sedang aktif"""
-        return self.active_role
-    
-    def get_role(self, role_id: str) -> Optional[BaseRole]:
-        """Dapatkan role instance"""
-        try:
-            role_id = normalize_role_id(role_id)
-            return self.roles.get(role_id)
-        except:
-            return None
-    
-    async def save_all(self, persistent):
-        """Simpan semua role ke database"""
-        for role_id, role in self.roles.items():
-            try:
-                await persistent.set_state(f'role_{role_id}', json.dumps(role.to_dict()))
-            except Exception as e:
-                logger.error(f"Error saving role {role_id}: {e}", exc_info=True)
-    
-    async def load_all(self, persistent):
-        """Load semua role dari database"""
-        for role_id, role in self.roles.items():
-            try:
-                data = await persistent.get_state(f'role_{role_id}')
-                if data:
-                    role.from_dict(json.loads(data))
-                    logger.info(f"📀 Role {role.name} loaded from database")
-            except Exception as e:
-                logger.error(f"Error loading role {role_id}: {e}", exc_info=True)
 
 
 # =============================================================================
 # SINGLETON
 # =============================================================================
 
-_role_managers: Dict[int, RoleManager] = {}
+_role_manager: Optional[RoleManager] = None
 
 
-def get_role_manager(user_id: int = 0) -> RoleManager:
-    """Dapatkan RoleManager untuk user tertentu"""
-    if user_id not in _role_managers:
-        _role_managers[user_id] = RoleManager(user_id)
-    return _role_managers[user_id]
+def get_role_manager() -> RoleManager:
+    """Dapatkan singleton RoleManager"""
+    global _role_manager
+    if _role_manager is None:
+        _role_manager = RoleManager()
+        print("[ROLE MANAGER] Singleton initialized")
+    return _role_manager
+
+
+role_manager = get_role_manager()
