@@ -187,7 +187,49 @@ Kirim **/batal** kalo mau balik ke Nova.
     
     def _build_role_prompt(self, role, pesan_mas: str) -> str:
         """Build prompt untuk role dengan unlock berdasarkan level"""
-        style = role.emotional.get_current_style()
+    
+        # Ambil pakaian dengan aman
+        try:
+            if hasattr(role, 'tracker') and role.tracker:
+                clothing_desc = role.tracker.get_clothing_summary()
+            elif hasattr(role, 'clothing') and isinstance(role.clothing, dict):
+                # Fallback manual
+                parts = []
+                if role.clothing.get('hijab', False):
+                    parts.append(f"hijab {role.clothing.get('hijab_warna', 'pink')}")
+                else:
+                    parts.append("tanpa hijab")
+                if role.clothing.get('top'):
+                    parts.append(role.clothing['top'])
+                    if role.clothing.get('bra', False):
+                        parts.append(f"(pake bra {role.clothing.get('bra_warna', 'putih')})")
+                else:
+                    if role.clothing.get('bra', False):
+                        parts.append(f"cuma pake bra {role.clothing.get('bra_warna', 'putih')}")
+                    else:
+                        parts.append("telanjang dada")
+                if role.clothing.get('cd', False):
+                    parts.append(f"pake cd {role.clothing.get('cd_warna', 'putih')}")
+                else:
+                    parts.append("tanpa cd")
+                clothing_desc = ", ".join(parts)
+            else:
+                clothing_desc = "pakaian biasa"
+        except Exception as e:
+            logging.error(f"Error getting clothing: {e}")
+            clothing_desc = "pakaian biasa"
+    
+        # Ambil posisi dengan aman
+        try:
+            position = role.tracker.position if hasattr(role, 'tracker') and role.tracker else "duduk"
+        except:
+            position = "duduk"
+    
+        # Ambil lokasi dengan aman
+        try:    
+            location = role.tracker.location if hasattr(role, 'tracker') and role.tracker else "kamar"
+        except:
+            location = "kamar"
         
         prompt = f"""
 KAMU ADALAH {role.name} (panggilan {role.nickname}). BUKAN Nova. BUKAN AI assistant.
