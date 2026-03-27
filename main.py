@@ -85,6 +85,22 @@ def get_active_role(user_id: int) -> Optional[str]:
 
 
 # =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+async def _get_therapist_manager(user_id: int):
+    """Helper untuk mendapatkan therapist manager"""
+    from roles.therapist_role import get_therapist_manager
+    return get_therapist_manager(user_id)
+
+
+async def _get_pelacur_manager(user_id: int):
+    """Helper untuk mendapatkan pelacur manager"""
+    from roles.pelacur_role import get_pelacur_manager
+    return get_pelacur_manager(user_id)
+
+
+# =============================================================================
 # COMMAND HANDLERS
 # =============================================================================
 
@@ -122,11 +138,22 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /role istri_orang - Istri Orang (Sika)\n"
         "• /role therapist - Therapist (Anya/Syifa/Laura)\n"
         "• /role pelacur - Pelacur (Davina/Michelle/Jihane)\n\n"
+        "*Role Therapist Commands:*\n"
+        "• /pijat - Mulai sesi pijat\n"
+        "• /next - Lanjut ke fase berikutnya\n"
+        "• /nego [service] [harga] - Nego harga (bj/sex)\n"
+        "• /deal - Konfirmasi deal\n"
+        "• /buka - Buka resleting dress\n"
+        "• /remas - Remas toket\n"
+        "• /pegang - Pegang paha\n"
+        "• /ganti [posisi] - Ganti posisi (cowgirl/missionary/doggy/spooning)\n"
+        "• /climax - Climax / crot\n"
+        "• /statusrole - Lihat status role\n\n"
         "*Manajemen:*\n• /pause - Hentikan sesi\n• /resume - Lanjutkan sesi\n• /batal - Kembali ke mode chat\n\n"
         "*Backup:*\n• /backup - Backup database\n\n"
         "Selamat menikmati, Mas. 💜",
         parse_mode='Markdown'
-)
+    )
     logger.info(f"✅ /start response sent to user {user_id}")
 
 
@@ -318,7 +345,10 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         respon = role_manager.switch_role(role_id)
         await update.message.reply_text(respon, parse_mode='Markdown')
     else:
-        await update.message.reply_text(f"Role '{role_id}' gak ada. Pilih: ipar, teman_kantor, pelakor, istri_orang")
+        await update.message.reply_text(
+            f"Role '{role_id}' gak ada. Pilih: ipar, teman_kantor, pelakor, istri_orang, therapist, pelacur",
+            parse_mode='Markdown'
+        )
 
 
 async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -334,7 +364,7 @@ async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if mode != 'role':
         await update.message.reply_text(
             "💜 Tidak ada role yang sedang aktif.\n\n"
-            "Gunakan **/role ipar** atau **/role teman_kantor** dulu ya, Mas.",
+            "Gunakan **/role ipar** atau **/role therapist** dulu ya, Mas.",
             parse_mode='Markdown'
         )
         return
@@ -352,11 +382,11 @@ async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     # Format status role
-    status = await _format_role_status(role)
+    status = await _format_role_status(role, active_role_id)
     await update.message.reply_text(status, parse_mode='Markdown')
 
 
-async def _format_role_status(role) -> str:
+async def _format_role_status(role, role_id: str) -> str:
     """Format status role"""
     style = role.emotional.get_current_style()
     phase = role.relationship.phase
@@ -391,6 +421,32 @@ async def _format_role_status(role) -> str:
         "weak": "😵"
     }.get(condition, "😐")
     
+    # Role-specific status
+    role_specific = ""
+    if role_id == "therapist":
+        try:
+            role_specific = f"""
+╠══════════════════════════════════════════════════════════════╣
+║ 🎭 THERAPIST SESSION:
+║    Sesi: {role.session_phase if hasattr(role, 'session_phase') else 'tidak aktif'}
+║    Service: {role.vitalitas_service if hasattr(role, 'vitalitas_service') else '-'}
+║    Deal: Rp{role.vitalitas_price if hasattr(role, 'vitalitas_price') else 0:,}
+║    Dress: {'🔓 Buka' if getattr(role, 'dress_zipper_open', False) else '🔒 Tertutup'}
+"""
+        except:
+            pass
+    elif role_id == "pelacur":
+        try:
+            role_specific = f"""
+╠══════════════════════════════════════════════════════════════╣
+║ 🔞 PELACUR SESSION:
+║    Service: {role.service_type if hasattr(role, 'service_type') else '-'}
+║    Deal: Rp{role.service_price if hasattr(role, 'service_price') else 0:,}
+║    Status: {'Aktif' if getattr(role, 'session_active', False) else 'Tidak aktif'}
+"""
+        except:
+            pass
+    
     return f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║                    👤 {role.name} ({role.nickname})                         ║
@@ -417,8 +473,321 @@ async def _format_role_status(role) -> str:
 ║ 👗 PAKAIAN: {clothing[:40]}
 ║ 📍 LOKASI: {location}
 ║ 💪 KONDISI: {condition_emoji} {condition}
+{role_specific}
 ╚══════════════════════════════════════════════════════════════╝
 """
+
+
+# =============================================================================
+# THERAPIST COMMAND HANDLERS
+# =============================================================================
+
+async def therapist_pijat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /pijat - Mulai sesi pijat"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    therapist_mgr = await _get_therapist_manager(user_id)
+    therapist = therapist_mgr.get_active()
+    
+    if not therapist:
+        await update.message.reply_text("Role therapist tidak aktif.")
+        return
+    
+    # Proses perintah pijat
+    respon = therapist._pending_hand_towel_removal = True
+    result = therapist.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def therapist_next_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /next - Lanjut ke fase berikutnya"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    therapist_mgr = await _get_therapist_manager(user_id)
+    therapist = therapist_mgr.get_active()
+    
+    if not therapist:
+        await update.message.reply_text("Role therapist tidak aktif.")
+        return
+    
+    # Proses lanjut fase
+    if therapist.session_phase == "reflex_back":
+        therapist.reflex_back_complete = True
+        therapist.session_phase = "reflex_front"
+        therapist._pending_turn_over = True
+        result = therapist.get_greeting()
+    elif therapist.session_phase == "reflex_front":
+        therapist.reflex_front_complete = True
+        therapist.session_phase = "vitalitas_offer"
+        therapist._pending_reflex_front_complete = True
+        result = therapist.get_greeting()
+    else:
+        result = "Belum waktunya /next, Mas. Selesaikan fase saat ini dulu."
+    
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def therapist_nego_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /nego [service] [harga] - Negosiasi harga"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text("Gunakan: `/nego bj 300000` atau `/nego sex 700000`", parse_mode='Markdown')
+        return
+    
+    service = args[0].lower()
+    try:
+        price = int(args[1])
+    except ValueError:
+        await update.message.reply_text("Harga harus angka, Mas.", parse_mode='Markdown')
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    therapist_mgr = await _get_therapist_manager(user_id)
+    therapist = therapist_mgr.get_active()
+    
+    if not therapist:
+        await update.message.reply_text("Role therapist tidak aktif.")
+        return
+    
+    if service not in ['bj', 'sex']:
+        await update.message.reply_text("Pilihan: bj atau sex", parse_mode='Markdown')
+        return
+    
+    result = therapist.handle_nego(service, price)
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def therapist_deal_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /deal - Konfirmasi deal"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    therapist_mgr = await _get_therapist_manager(user_id)
+    therapist = therapist_mgr.get_active()
+    
+    if not therapist:
+        await update.message.reply_text("Role therapist tidak aktif.")
+        return
+    
+    result = therapist.confirm_deal()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def therapist_buka_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /buka - Buka resleting dress"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    therapist_mgr = await _get_therapist_manager(user_id)
+    therapist = therapist_mgr.get_active()
+    
+    if not therapist:
+        await update.message.reply_text("Role therapist tidak aktif.")
+        return
+    
+    therapist.dress_zipper_open = True
+    therapist._pending_zipper_open = True
+    result = therapist.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def therapist_remas_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /remas - Remas toket"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    therapist_mgr = await _get_therapist_manager(user_id)
+    therapist = therapist_mgr.get_active()
+    
+    if not therapist:
+        await update.message.reply_text("Role therapist tidak aktif.")
+        return
+    
+    therapist.breast_grope_count += 1
+    therapist.emotional.arousal = min(100, therapist.emotional.arousal + 15)
+    therapist._pending_breast_offer = True
+    result = therapist.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def therapist_pegang_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /pegang - Pegang paha"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    therapist_mgr = await _get_therapist_manager(user_id)
+    therapist = therapist_mgr.get_active()
+    
+    if not therapist:
+        await update.message.reply_text("Role therapist tidak aktif.")
+        return
+    
+    therapist.thigh_touch_count += 1
+    therapist.emotional.arousal = min(100, therapist.emotional.arousal + 10)
+    await update.message.reply_text("*{self.name}* merasakan tangan Mas di pahanya.\n\n\"Mas... *napas mulai berat* di situ...\"", parse_mode='Markdown')
+
+
+async def therapist_ganti_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /ganti [posisi] - Ganti posisi (untuk sex)"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    args = context.args
+    if not args:
+        await update.message.reply_text("Posisi: cowgirl, missionary, doggy, spooning, standing, sitting", parse_mode='Markdown')
+        return
+    
+    position = args[0].lower()
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    therapist_mgr = await _get_therapist_manager(user_id)
+    therapist = therapist_mgr.get_active()
+    
+    if not therapist:
+        await update.message.reply_text("Role therapist tidak aktif.")
+        return
+    
+    if therapist.vitalitas_service != "sex":
+        await update.message.reply_text("Ganti posisi hanya untuk service Sex, Mas.", parse_mode='Markdown')
+        return
+    
+    valid_positions = ['cowgirl', 'missionary', 'doggy', 'spooning', 'standing', 'sitting']
+    if position not in valid_positions:
+        await update.message.reply_text(f"Posisi: {', '.join(valid_positions)}", parse_mode='Markdown')
+        return
+    
+    therapist.current_position = position
+    therapist._pending_position_change = True
+    result = therapist.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def therapist_climax_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /climax - Climax / crot"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    therapist_mgr = await _get_therapist_manager(user_id)
+    therapist = therapist_mgr.get_active()
+    
+    if not therapist:
+        await update.message.reply_text("Role therapist tidak aktif.")
+        return
+    
+    if not therapist.vitalitas_active and not therapist.vitalitas_hj_active and not therapist.vitalitas_bj_active and not therapist.vitalitas_sex_active:
+        await update.message.reply_text("Belum ada service yang dimulai, Mas.", parse_mode='Markdown')
+        return
+    
+    therapist.mas_climax = True
+    therapist.service_completed = True
+    therapist.session_phase = "completed"
+    therapist._pending_climax = True
+    result = therapist.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def therapist_selesai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /selesai - Akhiri sesi"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    therapist_mgr = await _get_therapist_manager(user_id)
+    therapist = therapist_mgr.get_active()
+    
+    if not therapist:
+        await update.message.reply_text("Role therapist tidak aktif.")
+        return
+    
+    result = therapist.end_session()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+# =============================================================================
+# BACKUP & OTHER COMMANDS
+# =============================================================================
 
 async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /batal"""
@@ -534,13 +903,35 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📖 *Bantuan ANORA-V2*\n\n"
         "*Mode Chat:*\n• /nova - Panggil Nova\n• /status - Lihat status Nova\n• /flashback - Flashback momen indah\n\n"
         "*Mode Roleplay:*\n• /roleplay - Aktifkan mode roleplay\n• /pindah [tempat] - Pindah lokasi\n\n"
-        "*Role Lain:*\n• /role ipar - IPAR (Dietha)\n• /role teman_kantor - Teman Kantor (Ipeh)\n• /role pelakor - Pelakor (Wid)\n• /role istri_orang - Istri Orang (Sika)\n\n"
+        "*Role Lain:*\n"
+        "• /role ipar - IPAR (Dietha)\n"
+        "• /role teman_kantor - Teman Kantor (Ipeh)\n"
+        "• /role pelakor - Pelakor (Wid)\n"
+        "• /role istri_orang - Istri Orang (Sika)\n"
+        "• /role therapist - Therapist (Anya/Syifa/Laura)\n"
+        "• /role pelacur - Pelacur (Davina/Michelle/Jihane)\n\n"
+        "*Role Therapist Commands:*\n"
+        "• /pijat - Mulai sesi pijat\n"
+        "• /next - Lanjut ke fase berikutnya\n"
+        "• /nego [service] [harga] - Nego harga (bj/sex)\n"
+        "• /deal - Konfirmasi deal\n"
+        "• /buka - Buka resleting dress\n"
+        "• /remas - Remas toket\n"
+        "• /pegang - Pegang paha\n"
+        "• /ganti [posisi] - Ganti posisi (cowgirl/missionary/doggy/spooning)\n"
+        "• /climax - Climax / crot\n"
+        "• /selesai - Akhiri sesi\n"
+        "• /statusrole - Lihat status role\n\n"
         "*Manajemen:*\n• /pause - Hentikan sesi\n• /resume - Lanjutkan sesi\n• /batal - Kembali ke mode chat\n\n"
         "*Backup:*\n• /backup - Backup database\n\n"
         "Selamat menikmati, Mas. 💜",
         parse_mode='Markdown'
     )
 
+
+# =============================================================================
+# MESSAGE HANDLER
+# =============================================================================
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler untuk pesan"""
@@ -557,9 +948,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"📨 Message from {user_id}: {pesan[:50]}")
     
     mode = get_user_mode(user_id)
-
-    # 🔥 TAMBAHKAN INI 🔥
-    logger.info(f"📨 Message: mode={mode}, text={pesan[:50]}")
     
     if mode == 'paused':
         await update.message.reply_text(
@@ -572,10 +960,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"🎭 ROLEPLAY MODE ACTIVE - processing: {pesan}")
         try:
             roleplay = await get_anora_roleplay()
-            logger.info(f"✅ Roleplay instance: {roleplay}")
-            logger.info(f"✅ Roleplay is_active: {roleplay.is_active}")
             respons = await roleplay.process(pesan)
-            logger.info(f"✅ Roleplay response: {respons[:100]}...")
             await update.message.reply_text(respons, parse_mode='Markdown')
         except Exception as e:
             logger.error(f"❌ Roleplay error: {e}")
@@ -628,19 +1013,15 @@ async def webhook_handler(request):
     
     logger.info(f"📨 Webhook called: {request.method} {request.path}")
     
-    # Handle GET request (browser access)
     if request.method == 'GET':
         return web.Response(
             text="This endpoint is for Telegram webhook. Use POST method.",
             status=405
         )
     
-    # Check application ready
     if not _application:
         logger.error("❌ _application is None! Bot not ready")
         return web.Response(status=503, text='Bot not ready')
-    
-    logger.info(f"✅ _application ready: {_application}")
     
     try:
         update_data = await request.json()
@@ -761,11 +1142,27 @@ class AnoraBot:
         app.add_handler(CommandHandler("pindah", pindah_command))
         app.add_handler(CommandHandler("role", role_command))
         app.add_handler(CommandHandler("statusrole", statusrole_command))
+        
+        # Therapist commands
+        app.add_handler(CommandHandler("pijat", therapist_pijat_command))
+        app.add_handler(CommandHandler("next", therapist_next_command))
+        app.add_handler(CommandHandler("nego", therapist_nego_command))
+        app.add_handler(CommandHandler("deal", therapist_deal_command))
+        app.add_handler(CommandHandler("buka", therapist_buka_command))
+        app.add_handler(CommandHandler("remas", therapist_remas_command))
+        app.add_handler(CommandHandler("pegang", therapist_pegang_command))
+        app.add_handler(CommandHandler("ganti", therapist_ganti_command))
+        app.add_handler(CommandHandler("climax", therapist_climax_command))
+        app.add_handler(CommandHandler("selesai", therapist_selesai_command))
+        
+        # General commands
         app.add_handler(CommandHandler("batal", back_to_nova))
         app.add_handler(CommandHandler("pause", pause_session))
         app.add_handler(CommandHandler("resume", resume_session))
         app.add_handler(CommandHandler("backup", backup_command))
         app.add_handler(CommandHandler("help", help_command))
+        
+        # Message handler (must be last)
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
         app.add_error_handler(error_handler)
         
@@ -841,7 +1238,7 @@ class AnoraBot:
         await self.application.initialize()
         await self.application.start()
         
-        # 🔥 SET GLOBAL APPLICATION 🔥
+        # Set global application
         _application = self.application
         logger.info("✅ Application set to global variable")
         
@@ -866,7 +1263,8 @@ class AnoraBot:
         logger.info(f"👑 Admin ID: {get_settings().admin_id}")
         logger.info("   Kirim /nova untuk panggil Nova")
         logger.info("   Kirim /roleplay untuk mode roleplay")
-        logger.info("   Kirim /role ipar untuk main role IPAR")
+        logger.info("   Kirim /role therapist untuk mode terapis")
+        logger.info("   Kirim /role pelacur untuk mode pelacur")
         logger.info("   Kirim /status untuk lihat status lengkap")
         logger.info("   Kirim /pause untuk hentikan sesi sementara")
         logger.info("   Kirim /backup untuk backup database")
