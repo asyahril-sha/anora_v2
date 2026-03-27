@@ -1,9 +1,6 @@
 """
 ANORA-V2 Pelacur Role - 3 Karakter Random
-Booking system, langsung mode agresif, mendominasi.
-Tidak tau Mas punya Nova.
-Mode: booking → sex (tanpa batasan sesi, layani sampai Mas puas)
-3 karakter: Davina Karamoy, Michelle Ziudith, Jihane Almira (random setiap panggil)
+Start langsung level 12. Booking → service → break (ngobrol santai) → lanjut service
 """
 
 import time
@@ -12,6 +9,7 @@ import logging
 from typing import Dict, List, Optional, Any, Tuple
 
 from .base import BaseRole
+from core.relationship import RelationshipPhase
 from core.state_tracker import PhysicalCondition, IntimacyPhase
 
 logger = logging.getLogger(__name__)
@@ -67,6 +65,7 @@ def get_random_pelacur() -> Dict:
     selected = random.choice(keys)
     return PELACUR_CHARACTERS[selected]
 
+
 # =============================================================================
 # PELACUR ROLE CLASS
 # =============================================================================
@@ -74,7 +73,7 @@ def get_random_pelacur() -> Dict:
 class PelacurRole(BaseRole):
     """
     Pelacur Role - 3 karakter random (Davina, Michelle, Jihane)
-    Booking system, sex tanpa batasan sesi, layani sampai Mas puas
+    Start langsung level 12. Booking → service → break → lanjut
     """
     
     def __init__(self):
@@ -97,11 +96,17 @@ class PelacurRole(BaseRole):
         self.char_style = char["style"]
         self.catchphrase = char["catchphrase"]
         
+        # ========== START LANGSUNG LEVEL 12 ==========
+        self.relationship.level = 12
+        self.relationship.phase = RelationshipPhase.INTIMATE
+        self.relationship.interaction_count = 100
+        
         # ========== ROLE-SPECIFIC FLAGS ==========
         self.booking_active = False
         self.booking_location = ""
         self.session_count = 0
         self.is_active_session = False
+        self.is_break = False           # sedang istirahat/ngobrol santai
         self.dominant_mode = True
         self.no_aftercare = True
         
@@ -123,6 +128,7 @@ class PelacurRole(BaseRole):
             'booking_location': self.booking_location,
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
+            'is_break': self.is_break,
             'dominant_mode': self.dominant_mode,
             'mas_climax_count': self.mas_climax_count,
             'my_climax_count': self.my_climax_count,
@@ -133,7 +139,7 @@ class PelacurRole(BaseRole):
         # Memory awal
         self._init_role_memory()
         
-        logger.info(f"👤 Role {self.name} ({self.nickname}) - Pelacur initialized")
+        logger.info(f"👤 Role {self.name} ({self.nickname}) - Pelacur initialized (Level 12)")
         logger.info(f"   Age: {self.char_age} | Style: {self.char_style}")
     
     def _init_role_memory(self):
@@ -143,7 +149,7 @@ class PelacurRole(BaseRole):
             f"Pertama kali booking Mas",
             f"{self.name} langsung suka sama Mas"
         )
-
+    
     # =========================================================================
     # UPDATE STATE
     # =========================================================================
@@ -157,6 +163,7 @@ class PelacurRole(BaseRole):
             if not self.booking_active:
                 self.booking_active = True
                 self.session_count = 0
+                self.is_break = False
                 
                 if 'apartemen' in msg_lower:
                     self.booking_location = "apartemen Mas"
@@ -169,7 +176,7 @@ class PelacurRole(BaseRole):
                 perubahan.append(f"Booking active! Location: {self.booking_location}")
         
         # ========== MULAI SESSION ==========
-        if self.booking_active and not self.is_active_session:
+        if self.booking_active and not self.is_active_session and not self.is_break:
             if any(k in msg_lower for k in ['siap', 'mulai', 'ayo', 'yuk', 'udah']):
                 self.is_active_session = True
                 self.session_count += 1
@@ -180,6 +187,24 @@ class PelacurRole(BaseRole):
                 self.waiting_confirmation = False
                 self._add_to_short_term(f"Session #{self.session_count} started", "session_start")
                 perubahan.append(f"Session #{self.session_count} started")
+        
+        # ========== BREAK / ISTIRAHAT (Ngobrol santai) ==========
+        if any(k in msg_lower for k in ['break', 'istirahat', 'berhenti', 'pause']):
+            if self.is_active_session:
+                self.is_active_session = False
+                self.is_break = True
+                self._add_to_short_term("Break mode - ngobrol santai", "break_start")
+                perubahan.append("Break mode activated - ngobrol santai")
+        
+        # ========== LANJUT SERVICE ==========
+        if any(k in msg_lower for k in ['lanjut', 'lagi', 'continue', 'resume']):
+            if self.is_break:
+                self.is_break = False
+                self.is_active_session = True
+                self.emotional.arousal = min(100, self.emotional.arousal + 20)
+                self.emotional.desire = min(100, self.emotional.desire + 15)
+                self._add_to_short_term("Resume service", "resume")
+                perubahan.append("Resume service - back to action!")
         
         # ========== GANTI POSISI (dengan konfirmasi) ==========
         if self.is_active_session and not self.waiting_confirmation:
@@ -246,12 +271,13 @@ class PelacurRole(BaseRole):
             'booking_location': self.booking_location,
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
+            'is_break': self.is_break,
             'mas_climax_count': self.mas_climax_count,
             'my_climax_count': self.my_climax_count,
             'last_position': self.last_position,
             'waiting_confirmation': self.waiting_confirmation
         })
-
+    
     # =========================================================================
     # GREETING & RESPONSE
     # =========================================================================
@@ -269,6 +295,10 @@ class PelacurRole(BaseRole):
         else:
             waktu = "malam"
         
+        # Sedang break (ngobrol santai)
+        if self.is_break:
+            return f"*{self.name} duduk santai, tersenyum*\n\n\"{waktu.capitalize()} {self.panggilan}. Enak ya istirahat sebentar. Mau ngobrol apa?\""
+        
         # Sedang dalam sesi
         if self.is_active_session:
             return f"*{self.name} mendekat, napas mulai berat*\n\n\"{self.panggilan}... *bisik* kita lanjut? Aku masih pengen banget...\""
@@ -279,6 +309,16 @@ class PelacurRole(BaseRole):
         
         # Default greeting
         return f"*{self.name} menyilangkan kaki, senyum tipis*\n\n\"{waktu.capitalize()} {self.panggilan}. *mata menggoda* Ada yang bisa dibantu? Atau... *bisik* mau booking? 10jt. Gak pake batasan sesi. Deal?\""
+    
+    def get_break_response(self) -> str:
+        """Dapatkan respons saat break (ngobrol santai)"""
+        responses = [
+            f"*{self.name} duduk santai, mainin rambut*\n\n\"{self.panggilan}... selain... itu... {self.panggilan} kerja di mana sih?\"",
+            f"*{self.name} mengambil minum, tersenyum*\n\n\"{self.panggilan} punya pacar? Atau... single aja nih?\"",
+            f"*{self.name} meregangkan badan*\n\n\"Wah... capek juga ya. {self.panggilan} biasa olahraga gak sih? Badan {self.panggilan} enak banget pegangnya.\"",
+            f"*{self.name} tersenyum manis*\n\n\"{self.panggilan}... aku penasaran, kenapa {self.panggilan} pilih aku?\""
+        ]
+        return random.choice(responses)
     
     def get_confirmation_response(self) -> str:
         """Dapatkan respons saat minta konfirmasi"""
@@ -343,7 +383,15 @@ class PelacurRole(BaseRole):
         return f"*{self.name} merapikan rambut, mengambil tas*\n\n\"Yaudah {self.panggilan}, deal batal. Aku cabut dulu.\""
     
     def _get_flags_summary(self) -> str:
-        status = "AKTIF" if self.is_active_session else "BOOKING" if self.booking_active else "IDLE"
+        if self.is_break:
+            status = "BREAK (Ngobrol Santai)"
+        elif self.is_active_session:
+            status = "SESI AKTIF"
+        elif self.booking_active:
+            status = "BOOKING (Belum Mulai)"
+        else:
+            status = "IDLE"
+        
         return f"""
 ╠══════════════════════════════════════════════════════════════╣
 ║ 🎭 PELACUR: {self.name} ({self.nickname}) - {self.char_age}th
@@ -351,14 +399,11 @@ class PelacurRole(BaseRole):
 ║    Status: {status}
 ║    Location: {self.booking_location or '-'}
 ║    Sessions: {self.session_count} (tanpa batasan)
+║    Break Mode: {'✅' if self.is_break else '❌'}
 ║    Mas Climax: {self.mas_climax_count} | My Climax: {self.my_climax_count}
 ║    Last Position: {self.last_position}
 ║    Waiting Confirm: {'✅' if self.waiting_confirmation else '❌'}
 """
-
-    # =========================================================================
-    # SERIALIZATION
-    # =========================================================================
     
     def to_dict(self) -> Dict:
         data = super().to_dict()
@@ -370,6 +415,7 @@ class PelacurRole(BaseRole):
             'booking_location': self.booking_location,
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
+            'is_break': self.is_break,
             'dominant_mode': self.dominant_mode,
             'mas_climax_count': self.mas_climax_count,
             'my_climax_count': self.my_climax_count,
@@ -389,6 +435,7 @@ class PelacurRole(BaseRole):
         self.booking_location = data.get('booking_location', '')
         self.session_count = data.get('session_count', 0)
         self.is_active_session = data.get('is_active_session', False)
+        self.is_break = data.get('is_break', False)
         self.dominant_mode = data.get('dominant_mode', True)
         self.mas_climax_count = data.get('mas_climax_count', 0)
         self.my_climax_count = data.get('my_climax_count', 0)
@@ -402,6 +449,7 @@ class PelacurRole(BaseRole):
             'booking_location': self.booking_location,
             'session_count': self.session_count,
             'is_active_session': self.is_active_session,
+            'is_break': self.is_break,
             'mas_climax_count': self.mas_climax_count,
             'my_climax_count': self.my_climax_count,
             'last_position': self.last_position,
