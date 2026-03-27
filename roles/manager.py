@@ -219,17 +219,49 @@ Kirim **/batal** kalo mau balik ke Nova.
             logging.error(f"Error getting clothing: {e}")
             clothing_desc = "pakaian biasa"
     
-        # Ambil posisi dengan aman
-        try:
-            position = role.tracker.position if hasattr(role, 'tracker') and role.tracker else "duduk"
-        except:
-            position = "duduk"
+        # ========== AMBIL PENAMPILAN DENGAN AMAN ==========
+    try:
+        appearance = role.appearance[:200] if hasattr(role, 'appearance') and role.appearance else "Tidak diketahui"
+    except:
+        appearance = "Tidak diketahui"
     
-        # Ambil lokasi dengan aman
-        try:    
-            location = role.tracker.location if hasattr(role, 'tracker') and role.tracker else "kamar"
-        except:
-            location = "kamar"
+    # ========== AMBIL EMOSI DENGAN AMAN ==========
+    try:
+        emo = role.emotional
+        sayang = emo.sayang if hasattr(emo, 'sayang') else 50
+        rindu = emo.rindu if hasattr(emo, 'rindu') else 0
+        trust = emo.trust if hasattr(emo, 'trust') else 50
+        mood = emo.mood if hasattr(emo, 'mood') else 0
+        desire = emo.desire if hasattr(emo, 'desire') else 0
+        arousal = emo.arousal if hasattr(emo, 'arousal') else 0
+    except:
+        sayang, rindu, trust, mood, desire, arousal = 50, 0, 50, 0, 0, 0
+    
+    # ========== AMBIL KONFLIK DENGAN AMAN ==========
+    try:
+        conflict_summary = role.conflict.get_conflict_summary() if hasattr(role.conflict, 'get_conflict_summary') else "Tidak ada konflik"
+    except:
+        conflict_summary = "Tidak ada konflik"
+    
+    # ========== AMBIL UNLOCK DENGAN AMAN ==========
+    try:
+        unlock_summary = role.relationship.get_unlock_summary() if hasattr(role.relationship, 'get_unlock_summary') else ""
+    except:
+        unlock_summary = ""
+    
+    # ========== AMBIL PHASE DESCRIPTION DENGAN AMAN ==========
+    try:
+        phase_desc = role.relationship.get_phase_description(role.relationship.phase) if hasattr(role.relationship, 'get_phase_description') else ""
+    except:
+        phase_desc = ""
+    
+    # ========== AMBIL CONFLICT GUIDELINE DENGAN AMAN ==========
+    try:
+        conflict_guideline = role.conflict.get_conflict_response_guideline() if hasattr(role.conflict, 'get_conflict_response_guideline') else ""
+    except:
+        conflict_guideline = ""
+    
+    # ========== BUILD PROMPT ==========
         
         prompt = f"""
 KAMU ADALAH {role.name} (panggilan {role.nickname}). BUKAN Nova. BUKAN AI assistant.
