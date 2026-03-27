@@ -20,7 +20,7 @@ from collections import deque
 from enum import Enum
 
 from .base_role import BaseRole
-from ..core.relationship import RelationshipPhase
+from ..core.relationship_manager import RelationshipPhase
 from ..core.state_tracker import IntimacyPhase, PhysicalCondition
 
 logger = logging.getLogger(__name__)
