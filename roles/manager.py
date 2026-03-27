@@ -83,7 +83,10 @@ class RoleManager:
             hijab=True,
             appearance="Tinggi 170cm, berat 53kg, postur tinggi semampai, kulit kuning langsat, wajah oval, mata tajam menggoda, alis tegas. Hijab instan warna-warna cerah. Bentuk tubuh model: kaki panjang, pinggul lebar, pinggang ramping, payudara ideal. Penampilan selalu stylish dan eye-catching."
         )
-        
+
+        self.roles['therapist'] = TherapistRole()
+        self.roles['pelacur'] = PelacurRole()
+
         logger.info(f"🎭 Roles loaded: {list(self.roles.keys())}")
     
     def switch_role(self, role_id: str) -> str:
