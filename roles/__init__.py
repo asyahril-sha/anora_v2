@@ -10,6 +10,8 @@ from .ipar import IparRole
 from .teman_kantor import TemanKantorRole
 from .pelakor import PelakorRole
 from .istri_orang import IstriOrangRole
+from .therapist import TherapistRole
+from .pelacur import PelacurRole
 
 __all__ = [
     'BaseRole',
