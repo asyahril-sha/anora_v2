@@ -24,4 +24,3 @@ __all__ = [
     'RoleManager',
     'get_role_manager',
 ]
-]
