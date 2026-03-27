@@ -99,7 +99,7 @@ class RoleManager:
     def switch_role(self, role_id: str) -> str:
         """Switch ke role tertentu"""
         if role_id not in self.roles:
-            return f"Role '{role_id}' gak ada. Pilih: ipar, teman_kantor, pelakor, istri_orang"
+            return f"Role '{role_id}' gak ada. Pilih: ipar, teman_kantor, pelakor, istri_orang, therapist, pelacur"
         
         self.active_role = role_id
         role = self.roles[role_id]
