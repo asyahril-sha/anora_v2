@@ -126,7 +126,7 @@ def get_user_mode(user_id: int) -> str:
 
 def set_user_mode(user_id: int, mode: str, active_role: Optional[str] = None):
     _user_modes[user_id] = {'mode': mode, 'active_role': active_role}
-    logger.info(f"👤 User {user_id} mode set to: {mode}")
+    logger.info(f"👤 User {user_id} mode set to: {mode}, active_role: {active_role}")
 
 
 def get_active_role(user_id: int) -> Optional[str]:
@@ -173,7 +173,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Halo! Bot ini untuk Mas. 💜")
         return
     
-    set_user_mode(user_id, 'chat')
+    set_user_mode(user_id, 'role', normalized_key)
+    logger.info(f"✅ After switch_role: user_id={user_id}, normalized_key={normalized_key}, active_role={get_active_role(user_id)}")
     
     await update.message.reply_text(
         "📖 *Bantuan ANORA-V2*\n\n"
@@ -1468,26 +1469,23 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    if mode == 'roleplay' and ANORA_AVAILABLE:
-        try:
-            roleplay = await get_anora_roleplay()
-            respons = await roleplay.process(pesan)
-            await update.message.reply_text(respons, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"Roleplay error: {e}", exc_info=True)
-            await update.message.reply_text("*Nova bingung sebentar*", parse_mode='Markdown')
-        return
-    
     if mode == 'role' and ANORA_AVAILABLE:
         active_role = get_active_role(user_id)
+        logger.info(f"🔍 DEBUG: mode=role, active_role={active_role}, user_id={user_id}")
+    
         if active_role:
             try:
-                # PAKAI role_manager LANGSUNG (singleton)
+                logger.info(f"📤 Sending to role_manager.chat({active_role}, '{pesan[:50]}')")
                 respons = await role_manager.chat(active_role, pesan)
+                logger.info(f"✅ Role response: {respons[:100]}...")
                 await update.message.reply_text(respons, parse_mode='Markdown')
             except Exception as e:
                 logger.error(f"Role chat error: {e}", exc_info=True)
                 await update.message.reply_text("Maaf, ada error. Coba lagi ya.", parse_mode='Markdown')
+            return
+        else:
+            logger.warning(f"⚠️ Role mode active but active_role is None for user {user_id}")
+            await update.message.reply_text("Belum ada role aktif, Mas. Gunakan /role dulu ya.", parse_mode='Markdown')
             return
     
     # Chat mode default
