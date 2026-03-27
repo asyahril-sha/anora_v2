@@ -12,7 +12,7 @@ import logging
 from typing import Dict, List, Optional, Any, Tuple
 
 from .base_role import BaseRole
-from ..core.relationship_manager import RelationshipPhase
+from ..core.relationship import RelationshipPhase
 
 logger = logging.getLogger(__name__)
 
