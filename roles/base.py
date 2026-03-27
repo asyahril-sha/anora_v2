@@ -157,10 +157,11 @@ class BaseRole:
         # ========== 2. UPDATE INTIMACY (DENGAN STATE TRACKER) ==========
         
         # Cek apakah perlu mulai intim (natural progression)
-        if self.emotional.should_start_intimacy_naturally(self.relationship.level)[0] and self.tracker.intimacy_phase == IntimacyPhase.NONE:
-            self.tracker.start_intimacy(self.location)
-            perubahan.append(f"Memulai sesi intim - fase {self.tracker.intimacy_phase.value}")
-            self.tracker.add_to_timeline(f"{self.name} memulai sesi intim", "natural progression")
+        if hasattr(self.emotional, 'should_start_intimacy_naturally'):
+            if self.emotional.should_start_intimacy_naturally(self.relationship.level)[0] and self.tracker.intimacy_phase == IntimacyPhase.NONE:
+                self.tracker.start_intimacy(self.location)
+                perubahan.append(f"Memulai sesi intim - fase {self.tracker.intimacy_phase.value}")
+                self.tracker.add_to_timeline(f"{self.name} memulai sesi intim", "natural progression")
         
         # Advance intimacy berdasarkan aksi
         if self.tracker.intimacy_phase != IntimacyPhase.NONE:
