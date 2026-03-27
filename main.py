@@ -148,7 +148,19 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /pegang - Pegang paha\n"
         "• /ganti [posisi] - Ganti posisi (cowgirl/missionary/doggy/spooning)\n"
         "• /climax - Climax / crot\n"
-        "• /statusrole - Lihat status role\n\n"
+        "• /selesai - Akhiri sesi\n\n"
+        "*Role Pelacur Commands:*\n"
+        "• /booking [lokasi] - Booking sesi (deal langsung)\n"
+        "• /deal - Konfirmasi deal\n"
+        "• /mulai - Mulai sesi intim (naik level 11)\n"
+        "• /break - Istirahat (turun level 7)\n"
+        "• /lanjut - Lanjut sesi (naik level 11)\n"
+        "• /ganti [posisi] - Ganti posisi\n"
+        "• /kenceng - Minta dipercepat\n"
+        "• /climax - Climax (tidak mengakhiri sesi)\n"
+        "• /selesai - Akhiri sesi\n\n"
+        "*Role Umum:*\n"
+        "• /statusrole - Lihat status role yang sedang aktif\n\n"
         "*Manajemen:*\n• /pause - Hentikan sesi\n• /resume - Lanjutkan sesi\n• /batal - Kembali ke mode chat\n\n"
         "*Backup:*\n• /backup - Backup database\n\n"
         "Selamat menikmati, Mas. 💜",
@@ -440,9 +452,11 @@ async def _format_role_status(role, role_id: str) -> str:
             role_specific = f"""
 ╠══════════════════════════════════════════════════════════════╣
 ║ 🔞 PELACUR SESSION:
-║    Service: {role.service_type if hasattr(role, 'service_type') else '-'}
-║    Deal: Rp{role.service_price if hasattr(role, 'service_price') else 0:,}
-║    Status: {'Aktif' if getattr(role, 'session_active', False) else 'Tidak aktif'}
+║    Booking: {role.booking_location if hasattr(role, 'booking_location') else '-'}
+║    Sesi Aktif: {'✅' if getattr(role, 'is_active_session', False) else '❌'}
+║    Level: {'11 (INTIM)' if getattr(role, 'intimacy_mode', False) else '7 (NORMAL)'}
+║    Mas Climax: {getattr(role, 'mas_climax_count', 0)} | My Climax: {getattr(role, 'my_climax_count', 0)}
+║    Posisi: {getattr(role, 'last_position', 'cowgirl')}
 """
         except:
             pass
@@ -503,7 +517,7 @@ async def therapist_pijat_command(update: Update, context: ContextTypes.DEFAULT_
         return
     
     # Proses perintah pijat
-    respon = therapist._pending_hand_towel_removal = True
+    therapist._pending_hand_towel_removal = True
     result = therapist.get_greeting()
     await update.message.reply_text(result, parse_mode='Markdown')
 
@@ -786,6 +800,299 @@ async def therapist_selesai_command(update: Update, context: ContextTypes.DEFAUL
 
 
 # =============================================================================
+# PELACUR COMMAND HANDLERS
+# =============================================================================
+
+async def pelacur_booking_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /booking [lokasi] - Booking sesi"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    args = context.args
+    if not args:
+        await update.message.reply_text("Gunakan: `/booking apartemen` atau `/booking hotel`", parse_mode='Markdown')
+        return
+    
+    location = ' '.join(args)
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur_mgr = await _get_pelacur_manager(user_id)
+    pelacur = pelacur_mgr.get_active()
+    
+    if not pelacur:
+        await update.message.reply_text("Role pelacur tidak aktif.")
+        return
+    
+    # Proses booking
+    pelacur.booking_active = True
+    pelacur.booking_location = location
+    pelacur._pending_booking_response = True
+    result = pelacur.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def pelacur_deal_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /deal - Konfirmasi deal"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur_mgr = await _get_pelacur_manager(user_id)
+    pelacur = pelacur_mgr.get_active()
+    
+    if not pelacur:
+        await update.message.reply_text("Role pelacur tidak aktif.")
+        return
+    
+    if not pelacur.booking_active:
+        await update.message.reply_text("Belum ada booking, Mas. Gunakan **/booking** dulu.", parse_mode='Markdown')
+        return
+    
+    pelacur._pending_deal_response = True
+    result = pelacur.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def pelacur_mulai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /mulai - Mulai sesi intim"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur_mgr = await _get_pelacur_manager(user_id)
+    pelacur = pelacur_mgr.get_active()
+    
+    if not pelacur:
+        await update.message.reply_text("Role pelacur tidak aktif.")
+        return
+    
+    if not pelacur.booking_active:
+        await update.message.reply_text("Belum ada booking, Mas. Gunakan **/booking** dulu.", parse_mode='Markdown')
+        return
+    
+    pelacur.intimacy_mode = True
+    pelacur.is_active_session = True
+    pelacur.relationship.level = 11
+    pelacur._pending_intimacy_start = True
+    result = pelacur.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def pelacur_break_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /break - Istirahat (turun level 7)"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur_mgr = await _get_pelacur_manager(user_id)
+    pelacur = pelacur_mgr.get_active()
+    
+    if not pelacur:
+        await update.message.reply_text("Role pelacur tidak aktif.")
+        return
+    
+    if not pelacur.is_active_session:
+        await update.message.reply_text("Tidak ada sesi aktif, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur.is_active_session = False
+    pelacur.is_break = True
+    pelacur.intimacy_mode = False
+    pelacur.relationship.level = 7
+    pelacur._pending_break_response = True
+    result = pelacur.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def pelacur_lanjut_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /lanjut - Lanjut sesi (naik level 11)"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur_mgr = await _get_pelacur_manager(user_id)
+    pelacur = pelacur_mgr.get_active()
+    
+    if not pelacur:
+        await update.message.reply_text("Role pelacur tidak aktif.")
+        return
+    
+    if not pelacur.is_break:
+        await update.message.reply_text("Tidak dalam mode break, Mas. Gunakan **/break** dulu.", parse_mode='Markdown')
+        return
+    
+    pelacur.is_break = False
+    pelacur.is_active_session = True
+    pelacur.intimacy_mode = True
+    pelacur.relationship.level = 11
+    pelacur._pending_resume_response = True
+    result = pelacur.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def pelacur_ganti_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /ganti [posisi] - Ganti posisi"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    args = context.args
+    if not args:
+        await update.message.reply_text("Posisi: cowgirl, missionary, doggy, spooning, standing, sitting", parse_mode='Markdown')
+        return
+    
+    position = args[0].lower()
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur_mgr = await _get_pelacur_manager(user_id)
+    pelacur = pelacur_mgr.get_active()
+    
+    if not pelacur:
+        await update.message.reply_text("Role pelacur tidak aktif.")
+        return
+    
+    if not pelacur.is_active_session:
+        await update.message.reply_text("Tidak ada sesi aktif, Mas.", parse_mode='Markdown')
+        return
+    
+    valid_positions = ['cowgirl', 'missionary', 'doggy', 'spooning', 'standing', 'sitting']
+    if position not in valid_positions:
+        await update.message.reply_text(f"Posisi: {', '.join(valid_positions)}", parse_mode='Markdown')
+        return
+    
+    pelacur.last_position = position
+    pelacur._pending_position_change = True
+    result = pelacur.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def pelacur_kenceng_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /kenceng - Minta dipercepat"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur_mgr = await _get_pelacur_manager(user_id)
+    pelacur = pelacur_mgr.get_active()
+    
+    if not pelacur:
+        await update.message.reply_text("Role pelacur tidak aktif.")
+        return
+    
+    if not pelacur.is_active_session:
+        await update.message.reply_text("Tidak ada sesi aktif, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur.waiting_confirmation = True
+    pelacur.pending_action = "speed_up"
+    pelacur._pending_position_change = True
+    result = pelacur.get_confirmation_response()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def pelacur_climax_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /climax - Climax (tidak mengakhiri sesi)"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur_mgr = await _get_pelacur_manager(user_id)
+    pelacur = pelacur_mgr.get_active()
+    
+    if not pelacur:
+        await update.message.reply_text("Role pelacur tidak aktif.")
+        return
+    
+    if not pelacur.is_active_session:
+        await update.message.reply_text("Tidak ada sesi aktif, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur.mas_climax_count += 1
+    pelacur._pending_climax_response = True
+    result = pelacur.get_greeting()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+async def pelacur_selesai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /selesai - Akhiri sesi"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    pelacur_mgr = await _get_pelacur_manager(user_id)
+    pelacur = pelacur_mgr.get_active()
+    
+    if not pelacur:
+        await update.message.reply_text("Role pelacur tidak aktif.")
+        return
+    
+    result = pelacur.end_session()
+    await update.message.reply_text(result, parse_mode='Markdown')
+
+
+# =============================================================================
 # BACKUP & OTHER COMMANDS
 # =============================================================================
 
@@ -920,8 +1227,19 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /pegang - Pegang paha\n"
         "• /ganti [posisi] - Ganti posisi (cowgirl/missionary/doggy/spooning)\n"
         "• /climax - Climax / crot\n"
-        "• /selesai - Akhiri sesi\n"
-        "• /statusrole - Lihat status role\n\n"
+        "• /selesai - Akhiri sesi\n\n"
+        "*Role Pelacur Commands:*\n"
+        "• /booking [lokasi] - Booking sesi (deal langsung)\n"
+        "• /deal - Konfirmasi deal\n"
+        "• /mulai - Mulai sesi intim (naik level 11)\n"
+        "• /break - Istirahat (turun level 7)\n"
+        "• /lanjut - Lanjut sesi (naik level 11)\n"
+        "• /ganti [posisi] - Ganti posisi\n"
+        "• /kenceng - Minta dipercepat\n"
+        "• /climax - Climax (tidak mengakhiri sesi)\n"
+        "• /selesai - Akhiri sesi\n\n"
+        "*Role Umum:*\n"
+        "• /statusrole - Lihat status role yang sedang aktif\n\n"
         "*Manajemen:*\n• /pause - Hentikan sesi\n• /resume - Lanjutkan sesi\n• /batal - Kembali ke mode chat\n\n"
         "*Backup:*\n• /backup - Backup database\n\n"
         "Selamat menikmati, Mas. 💜",
@@ -1154,6 +1472,17 @@ class AnoraBot:
         app.add_handler(CommandHandler("ganti", therapist_ganti_command))
         app.add_handler(CommandHandler("climax", therapist_climax_command))
         app.add_handler(CommandHandler("selesai", therapist_selesai_command))
+        
+        # Pelacur commands
+        app.add_handler(CommandHandler("booking", pelacur_booking_command))
+        app.add_handler(CommandHandler("deal", pelacur_deal_command))
+        app.add_handler(CommandHandler("mulai", pelacur_mulai_command))
+        app.add_handler(CommandHandler("break", pelacur_break_command))
+        app.add_handler(CommandHandler("lanjut", pelacur_lanjut_command))
+        app.add_handler(CommandHandler("ganti", pelacur_ganti_command))
+        app.add_handler(CommandHandler("kenceng", pelacur_kenceng_command))
+        app.add_handler(CommandHandler("climax", pelacur_climax_command))
+        app.add_handler(CommandHandler("selesai", pelacur_selesai_command))
         
         # General commands
         app.add_handler(CommandHandler("batal", back_to_nova))
