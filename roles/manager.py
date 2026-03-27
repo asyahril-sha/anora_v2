@@ -193,7 +193,6 @@ Kirim **/batal** kalo mau balik ke Nova.
             if hasattr(role, 'tracker') and role.tracker:
                 clothing_desc = role.tracker.get_clothing_summary()
             elif hasattr(role, 'clothing') and isinstance(role.clothing, dict):
-                # Fallback manual
                 parts = []
                 if role.clothing.get('hijab', False):
                     parts.append(f"hijab {role.clothing.get('hijab_warna', 'pink')}")
@@ -219,13 +218,13 @@ Kirim **/batal** kalo mau balik ke Nova.
             logging.error(f"Error getting clothing: {e}")
             clothing_desc = "pakaian biasa"
 
-        # ========== AMBIL PENAMPILAN DENGAN AMAN ==========
+        # Ambil penampilan
         try:
             appearance = role.appearance[:200] if hasattr(role, 'appearance') and role.appearance else "Tidak diketahui"
         except:
             appearance = "Tidak diketahui"
 
-        # ========== AMBIL EMOSI DENGAN AMAN ==========
+        # Ambil emosi
         try:
             emo = role.emotional
             sayang = emo.sayang if hasattr(emo, 'sayang') else 50
@@ -237,37 +236,31 @@ Kirim **/batal** kalo mau balik ke Nova.
         except:
             sayang, rindu, trust, mood, desire, arousal = 50, 0, 50, 0, 0, 0
 
-        # ========== AMBIL KONFLIK DENGAN AMAN ==========
-        try:
+        # Ambil konflik
+        try:    
             conflict_summary = role.conflict.get_conflict_summary() if hasattr(role.conflict, 'get_conflict_summary') else "Tidak ada konflik"
         except:
             conflict_summary = "Tidak ada konflik"
 
-        # ========== AMBIL UNLOCK DENGAN AMAN ==========
+        # Ambil unlock
         try:
             unlock_summary = role.relationship.get_unlock_summary() if hasattr(role.relationship, 'get_unlock_summary') else ""
         except:
             unlock_summary = ""
 
-        # ========== AMBIL PHASE DESCRIPTION DENGAN AMAN ==========
+        # Ambil phase description
         try:
             phase_desc = role.relationship.get_phase_description(role.relationship.phase) if hasattr(role.relationship, 'get_phase_description') else ""
         except:
             phase_desc = ""
 
-        # ========== AMBIL CONFLICT GUIDELINE DENGAN AMAN ==========
-        try:
-            conflict_guideline = role.conflict.get_conflict_response_guideline() if hasattr(role.conflict, 'get_conflict_response_guideline') else ""
-        except:
-            conflict_guideline = ""
-
-        # ========== AMBIL GAYA BICARA DENGAN AMAN ==========
+        # Ambil gaya bicara
         try:
             style = role.emotional.get_current_style().value if hasattr(role.emotional, 'get_current_style') else "neutral"
         except:
             style = "neutral"
 
-        # ========== AMBIL FASE HUBUNGAN DENGAN AMAN ==========
+        # Ambil fase hubungan
         try:
             phase_value = role.relationship.phase.value if hasattr(role.relationship, 'phase') else "stranger"
             level = role.relationship.level if hasattr(role.relationship, 'level') else 1
@@ -275,13 +268,13 @@ Kirim **/batal** kalo mau balik ke Nova.
             phase_value = "stranger"
             level = 1
 
-        # ========== AMBIL PERCAKAPAN DENGAN AMAN ==========
+        # Ambil percakapan
         try:
             conversations = "\n".join([f"Mas: {c['mas']}" for c in role.conversations[-5:]]) if role.conversations else "Belum ada percakapan"
         except:
             conversations = "Belum ada percakapan"
 
-        # ========== BUILD PROMPT ==========
+        # Build prompt
         prompt = f"""
 KAMU ADALAH {role.name} (panggilan {role.nickname}). BUKAN Nova. BUKAN AI assistant.
 Kamu adalah karakter yang hidup dengan perasaan dan memory sendiri.
