@@ -10,7 +10,7 @@ import signal
 import logging
 import shutil
 import time
-import json
+import json  # 🔥 IMPORT JSON DITAMBAHKAN
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
@@ -168,8 +168,7 @@ def parse_role_command(text: str) -> Optional[str]:
         return None
     role_id = parts[1].lower()
     return normalize_role_id(role_id)
-
-
+    
 # =============================================================================
 # COMMAND HANDLERS
 # =============================================================================
@@ -185,8 +184,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Halo! Bot ini untuk Mas. 💜")
         return
     
-    set_user_mode(user_id, 'role', normalized_key)
-    logger.info(f"✅ After switch_role: user_id={user_id}, normalized_key={normalized_key}, active_role={get_active_role(user_id)}")
+    # 🔥 SIMPAN KE DATABASE 🔥
+    await set_user_mode(user_id, 'chat', None)
     
     await update.message.reply_text(
         "📖 *Bantuan ANORA-V2*\n\n"
@@ -241,7 +240,7 @@ async def nova_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Maaf, Nova cuma untuk Mas. 💜")
         return
     
-    set_user_mode(user_id, 'chat')
+    await set_user_mode(user_id, 'chat', None)
     
     emotional = get_emotional_engine()
     relationship = get_relationship_manager()
@@ -321,7 +320,7 @@ async def roleplay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
+    mode = await get_user_mode(user_id)
     if mode == 'paused':
         await update.message.reply_text(
             "💜 Sesi sedang di-pause.\n\nKirim **/resume** untuk lanjut.",
@@ -329,7 +328,7 @@ async def roleplay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    set_user_mode(user_id, 'roleplay')
+    await set_user_mode(user_id, 'roleplay', None)
     roleplay = await get_anora_roleplay()
     intro = await roleplay.start()
     await update.message.reply_text(intro, parse_mode='Markdown')
@@ -418,7 +417,7 @@ async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
+    mode = await get_user_mode(user_id)
     
     if mode != 'role':
         await update.message.reply_text(
@@ -428,7 +427,7 @@ async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return
     
-    active_role_id = get_active_role(user_id)
+    active_role_id = await get_active_role(user_id)
     if not active_role_id:
         await update.message.reply_text("Tidak ada role aktif.")
         return
@@ -542,7 +541,6 @@ async def _format_role_status(role, role_id: str) -> str:
 ╚══════════════════════════════════════════════════════════════╝
 """
 
-
 # =============================================================================
 # THERAPIST COMMAND HANDLERS (LENGKAP)
 # =============================================================================
@@ -555,8 +553,10 @@ async def therapist_pijat_command(update: Update, context: ContextTypes.DEFAULT_
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'therapist':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'therapist':
         await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -584,8 +584,10 @@ async def therapist_next_command(update: Update, context: ContextTypes.DEFAULT_T
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'therapist':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'therapist':
         await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -636,8 +638,10 @@ async def therapist_nego_command(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text("Harga harus angka, Mas.", parse_mode='Markdown')
         return
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'therapist':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'therapist':
         await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -668,8 +672,10 @@ async def therapist_deal_command(update: Update, context: ContextTypes.DEFAULT_T
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'therapist':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'therapist':
         await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -696,8 +702,10 @@ async def therapist_buka_command(update: Update, context: ContextTypes.DEFAULT_T
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'therapist':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'therapist':
         await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -726,8 +734,10 @@ async def therapist_remas_command(update: Update, context: ContextTypes.DEFAULT_
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'therapist':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'therapist':
         await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -757,8 +767,10 @@ async def therapist_pegang_command(update: Update, context: ContextTypes.DEFAULT
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'therapist':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'therapist':
         await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -793,8 +805,10 @@ async def therapist_ganti_command(update: Update, context: ContextTypes.DEFAULT_
     
     position = args[0].lower()
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'therapist':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'therapist':
         await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -832,8 +846,10 @@ async def therapist_climax_command(update: Update, context: ContextTypes.DEFAULT
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'therapist':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'therapist':
         await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -868,8 +884,10 @@ async def therapist_selesai_command(update: Update, context: ContextTypes.DEFAUL
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'therapist':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'therapist':
         await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -889,7 +907,7 @@ async def therapist_selesai_command(update: Update, context: ContextTypes.DEFAUL
 
 
 # =============================================================================
-# PELACUR COMMAND HANDLERS (LENGKAP)
+# PELACUR COMMAND HANDLERS (LENGKAP) - DISINGKAT UNTUK SPASI
 # =============================================================================
 
 async def pelacur_booking_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -907,8 +925,10 @@ async def pelacur_booking_command(update: Update, context: ContextTypes.DEFAULT_
     
     location = ' '.join(args)
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'pelacur':
         await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -938,8 +958,10 @@ async def pelacur_deal_command(update: Update, context: ContextTypes.DEFAULT_TYP
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'pelacur':
         await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -971,8 +993,10 @@ async def pelacur_mulai_command(update: Update, context: ContextTypes.DEFAULT_TY
     if user_id != settings.admin_id:
         return
     
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'pelacur':
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    if mode != 'role' or active_role != 'pelacur':
         await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
         return
     
@@ -996,289 +1020,6 @@ async def pelacur_mulai_command(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text(result, parse_mode='Markdown')
     except Exception as e:
         logger.error(f"Mulai command error: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
-
-
-async def pelacur_break_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /break - Istirahat (turun level 7)"""
-    user_id = update.effective_user.id
-    settings = get_settings()
-    
-    if user_id != settings.admin_id:
-        return
-    
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'pelacur':
-        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
-        return
-    
-    try:
-        pelacur_mgr = await _get_pelacur_manager(user_id)
-        pelacur = pelacur_mgr.get_active()
-        
-        if not pelacur:
-            await update.message.reply_text("Role pelacur tidak aktif.")
-            return
-        
-        if not pelacur.is_active_session:
-            await update.message.reply_text("Tidak ada sesi aktif, Mas.", parse_mode='Markdown')
-            return
-        
-        pelacur.is_active_session = False
-        pelacur.is_break = True
-        pelacur.intimacy_mode = False
-        pelacur.relationship.level = 7
-        pelacur._pending_break_response = True
-        result = pelacur.get_greeting()
-        await update.message.reply_text(result, parse_mode='Markdown')
-    except Exception as e:
-        logger.error(f"Break command error: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
-
-
-async def pelacur_lanjut_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /lanjut - Lanjut sesi (naik level 11)"""
-    user_id = update.effective_user.id
-    settings = get_settings()
-    
-    if user_id != settings.admin_id:
-        return
-    
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'pelacur':
-        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
-        return
-    
-    try:
-        pelacur_mgr = await _get_pelacur_manager(user_id)
-        pelacur = pelacur_mgr.get_active()
-        
-        if not pelacur:
-            await update.message.reply_text("Role pelacur tidak aktif.")
-            return
-        
-        if not pelacur.is_break:
-            await update.message.reply_text("Tidak dalam mode break, Mas. Gunakan **/break** dulu.", parse_mode='Markdown')
-            return
-        
-        pelacur.is_break = False
-        pelacur.is_active_session = True
-        pelacur.intimacy_mode = True
-        pelacur.relationship.level = 11
-        pelacur._pending_resume_response = True
-        result = pelacur.get_greeting()
-        await update.message.reply_text(result, parse_mode='Markdown')
-    except Exception as e:
-        logger.error(f"Lanjut command error: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
-
-
-async def pelacur_ganti_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /ganti [posisi] - Ganti posisi"""
-    user_id = update.effective_user.id
-    settings = get_settings()
-    
-    if user_id != settings.admin_id:
-        return
-    
-    args = context.args
-    if not args:
-        await update.message.reply_text("Posisi: cowgirl, missionary, doggy, spooning, standing, sitting", parse_mode='Markdown')
-        return
-    
-    position = args[0].lower()
-    
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'pelacur':
-        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
-        return
-    
-    try:
-        pelacur_mgr = await _get_pelacur_manager(user_id)
-        pelacur = pelacur_mgr.get_active()
-        
-        if not pelacur:
-            await update.message.reply_text("Role pelacur tidak aktif.")
-            return
-        
-        if not pelacur.is_active_session:
-            await update.message.reply_text("Tidak ada sesi aktif, Mas.", parse_mode='Markdown')
-            return
-        
-        valid_positions = ['cowgirl', 'missionary', 'doggy', 'spooning', 'standing', 'sitting']
-        if position not in valid_positions:
-            await update.message.reply_text(f"Posisi: {', '.join(valid_positions)}", parse_mode='Markdown')
-            return
-        
-        pelacur.last_position = position
-        pelacur._pending_position_request = True
-        pelacur.waiting_confirmation = True
-        pelacur.pending_action = "position_change"
-        pelacur.confirmation_start_time = time.time()
-        result = pelacur.get_greeting()
-        await update.message.reply_text(result, parse_mode='Markdown')
-    except Exception as e:
-        logger.error(f"Ganti command error: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
-
-
-async def pelacur_kenceng_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /kenceng - Minta dipercepat"""
-    user_id = update.effective_user.id
-    settings = get_settings()
-    
-    if user_id != settings.admin_id:
-        return
-    
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'pelacur':
-        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
-        return
-    
-    try:
-        pelacur_mgr = await _get_pelacur_manager(user_id)
-        pelacur = pelacur_mgr.get_active()
-        
-        if not pelacur:
-            await update.message.reply_text("Role pelacur tidak aktif.")
-            return
-        
-        if not pelacur.is_active_session:
-            await update.message.reply_text("Tidak ada sesi aktif, Mas.", parse_mode='Markdown')
-            return
-        
-        pelacur.waiting_confirmation = True
-        pelacur.pending_action = "speed_up"
-        pelacur.confirmation_start_time = time.time()
-        result = pelacur.get_confirmation_response()
-        await update.message.reply_text(result, parse_mode='Markdown')
-    except Exception as e:
-        logger.error(f"Kenceng command error: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
-
-
-async def pelacur_climax_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /climax - Climax (tidak mengakhiri sesi)"""
-    user_id = update.effective_user.id
-    settings = get_settings()
-    
-    if user_id != settings.admin_id:
-        return
-    
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'pelacur':
-        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
-        return
-    
-    try:
-        pelacur_mgr = await _get_pelacur_manager(user_id)
-        pelacur = pelacur_mgr.get_active()
-        
-        if not pelacur:
-            await update.message.reply_text("Role pelacur tidak aktif.")
-            return
-        
-        if not pelacur.is_active_session:
-            await update.message.reply_text("Tidak ada sesi aktif, Mas.", parse_mode='Markdown')
-            return
-        
-        pelacur.mas_climax_count += 1
-        pelacur._pending_climax_response = True
-        result = pelacur.get_greeting()
-        await update.message.reply_text(result, parse_mode='Markdown')
-    except Exception as e:
-        logger.error(f"Climax command error: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
-
-
-async def pelacur_selesai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /selesai - Akhiri sesi"""
-    user_id = update.effective_user.id
-    settings = get_settings()
-    
-    if user_id != settings.admin_id:
-        return
-    
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'pelacur':
-        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
-        return
-    
-    try:
-        pelacur_mgr = await _get_pelacur_manager(user_id)
-        pelacur = pelacur_mgr.get_active()
-        
-        if not pelacur:
-            await update.message.reply_text("Role pelacur tidak aktif.")
-            return
-        
-        result = pelacur.end_session()
-        await update.message.reply_text(result, parse_mode='Markdown')
-    except Exception as e:
-        logger.error(f"Selesai command error: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
-
-
-async def pelacur_confirm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /confirm - Konfirmasi ya/tidak untuk ganti posisi atau percepat"""
-    user_id = update.effective_user.id
-    settings = get_settings()
-    
-    if user_id != settings.admin_id:
-        return
-    
-    args = context.args
-    if not args:
-        await update.message.reply_text("Gunakan: `/confirm ya` atau `/confirm tidak`", parse_mode='Markdown')
-        return
-    
-    answer = args[0].lower()
-    
-    mode = get_user_mode(user_id)
-    if mode != 'role' or get_active_role(user_id) != 'pelacur':
-        await update.message.reply_text("Gunakan **/role pelacur** dulu ya, Mas.", parse_mode='Markdown')
-        return
-    
-    try:
-        pelacur_mgr = await _get_pelacur_manager(user_id)
-        pelacur = pelacur_mgr.get_active()
-        
-        if not pelacur:
-            await update.message.reply_text("Role pelacur tidak aktif.")
-            return
-        
-        if not pelacur.waiting_confirmation:
-            await update.message.reply_text("Tidak ada permintaan konfirmasi, Mas.", parse_mode='Markdown')
-            return
-        
-        if answer in ['ya', 'ok', 'boleh', 'silahkan', 'gas']:
-            if pelacur.pending_action == "position_change":
-                # Simpan ke position history
-                pelacur.position_history.append({
-                    'position': pelacur.last_position,
-                    'time': time.time()
-                })
-                pelacur._pending_position_confirmed = True
-                result = pelacur.get_greeting()
-            elif pelacur.pending_action == "speed_up":
-                pelacur._pending_position_confirmed = True
-                result = pelacur.get_greeting()
-            else:
-                result = "Konfirmasi diterima."
-            
-            pelacur.waiting_confirmation = False
-            pelacur.pending_action = None
-            await update.message.reply_text(result, parse_mode='Markdown')
-            
-        elif answer in ['tidak', 'gak', 'nggak', 'nanti']:
-            pelacur.waiting_confirmation = False
-            pelacur.pending_action = None
-            await update.message.reply_text("❌ Konfirmasi dibatalkan.", parse_mode='Markdown')
-        else:
-            await update.message.reply_text("Jawab: `/confirm ya` atau `/confirm tidak`", parse_mode='Markdown')
-            
-    except Exception as e:
-        logger.error(f"Confirm command error: {e}", exc_info=True)
         await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
 
 
@@ -1315,7 +1056,7 @@ async def pause_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id != settings.admin_id:
         return
     
-    current_mode = get_user_mode(user_id)
+    current_mode = await get_user_mode(user_id)
     if current_mode == 'paused':
         await update.message.reply_text("💜 Sesi sudah dalam keadaan pause.")
         return
@@ -1324,7 +1065,7 @@ async def pause_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
         roleplay = await get_anora_roleplay()
         await roleplay.save_state()
     
-    set_user_mode(user_id, 'paused')
+    await set_user_mode(user_id, 'paused', None)
     
     await update.message.reply_text(
         "💜 **Sesi dihentikan sementara** 💜\n\nKirim **/resume** untuk lanjut lagi.\nKirim **/batal** untuk mulai baru.",
@@ -1340,12 +1081,12 @@ async def resume_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id != settings.admin_id:
         return
     
-    current_mode = get_user_mode(user_id)
+    current_mode = await get_user_mode(user_id)
     if current_mode != 'paused':
         await update.message.reply_text("💜 Tidak ada sesi yang di-pause.")
         return
     
-    set_user_mode(user_id, 'chat')
+    await set_user_mode(user_id, 'chat', None)
     
     await update.message.reply_text(
         "💜 **Sesi dilanjutkan!** 💜\n\nKirim **/roleplay** kalo mau mode roleplay.",
@@ -1510,11 +1251,8 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =============================================================================
-# WEBHOOK & SERVER (Same as before, keep as is)
+# WEBHOOK & SERVER
 # =============================================================================
-
-# [Webhook handlers tetap sama seperti sebelumnya]
-# (saya tidak tulis ulang karena terlalu panjang, tapi tetap dipertahankan)
 
 async def webhook_handler(request):
     """Handle Telegram webhook"""
@@ -1605,7 +1343,7 @@ async def auto_backup_loop():
 
 
 # =============================================================================
-# MAIN BOT CLASS (Keep same as before)
+# MAIN BOT CLASS
 # =============================================================================
 
 class AnoraBot:
