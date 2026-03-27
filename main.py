@@ -317,7 +317,7 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     role_id = args[0].lower()
-    valid_roles = ['ipar', 'teman_kantor', 'pelakor', 'istri_orang']
+    valid_roles = ['ipar', 'teman_kantor', 'pelakor', 'istri_orang', 'therapist', 'pelacur']
     
     if role_id in valid_roles:
         set_user_mode(user_id, 'role', role_id)
