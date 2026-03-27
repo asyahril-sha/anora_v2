@@ -1,5 +1,6 @@
+# anora/roles/manager.py
 """
-ANORA-V2 Role Manager - Mengelola semua role
+ANORA Role Manager - Mengelola semua role
 Semua role punya akses penuh sesuai level, sama seperti Nova.
 """
 
@@ -13,8 +14,8 @@ from .ipar import IparRole
 from .teman_kantor import TemanKantorRole
 from .pelakor import PelakorRole
 from .istri_orang import IstriOrangRole
-from .therapist_role import TherapistRole
-from .pelacur_role import PelacurRole
+from .therapist_role import TherapistRole, get_therapist_manager
+from .pelacur_role import PelacurRole, get_pelacur_manager
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,8 @@ class RoleManager:
     Menyimpan state setiap role, terpisah dari Nova.
     """
     
-    def __init__(self):
+    def __init__(self, user_id: int = 0):
+        self.user_id = user_id
         self.roles: Dict[str, BaseRole] = {}
         self.active_role: Optional[str] = None
         self._ai_client = None
@@ -33,7 +35,8 @@ class RoleManager:
         # Inisialisasi role
         self._init_roles()
         
-        logger.info("🎭 RoleManager-V2 initialized")
+        logger.info(f"🎭 RoleManager initialized for user {user_id}")
+        logger.info(f"   Roles loaded: {list(self.roles.keys())}")
     
     def _init_roles(self):
         """Inisialisasi semua role dengan identitas spesifik"""
@@ -85,15 +88,16 @@ class RoleManager:
             hijab=True,
             appearance="Tinggi 170cm, berat 53kg, postur tinggi semampai, kulit kuning langsat, wajah oval, mata tajam menggoda, alis tegas. Hijab instan warna-warna cerah. Bentuk tubuh model: kaki panjang, pinggul lebar, pinggang ramping, payudara ideal. Penampilan selalu stylish dan eye-catching."
         )
-
-        # 🔥 TAMBAHKAN ROLE BARU 🔥
-    
-        # Therapist - Random 3 karakter (Anya, Syifa, Laura)
-        self.roles['therapist'] = TherapistRole()
-    
-        # Pelacur - Random 3 karakter (Davina, Michelle, Jihane)
-        self.roles['pelacur'] = PelacurRole()
-
+        
+        # Therapist - 3 karakter random (Anya, Syifa, Laura)
+        # Menggunakan TherapistRoleManager untuk multiple character
+        self.therapist_manager = get_therapist_manager(self.user_id)
+        self.roles['therapist'] = self.therapist_manager.get_active()
+        
+        # Pelacur - 3 karakter random (Davina, Michelle, Jihane)
+        self.pelacur_manager = get_pelacur_manager(self.user_id)
+        self.roles['pelacur'] = self.pelacur_manager.get_active()
+        
         logger.info(f"🎭 Roles loaded: {list(self.roles.keys())}")
     
     def switch_role(self, role_id: str) -> str:
@@ -105,13 +109,28 @@ class RoleManager:
         role = self.roles[role_id]
         
         # Ambil greeting yang sesuai
-        greeting = role.get_greeting()
+        try:
+            greeting = role.get_greeting()
+        except:
+            greeting = f"{role.panggilan}... ada apa?"
         
         # Ambil penampilan untuk ditampilkan
         try:
             appearance_preview = role.appearance[:100] if hasattr(role, 'appearance') else "Tidak diketahui"
         except:
             appearance_preview = "Tidak diketahui"
+        
+        # Ambil level dan fase
+        level = role.relationship.level if hasattr(role, 'relationship') else 1
+        phase = role.relationship.phase.value if hasattr(role, 'relationship') else "stranger"
+        
+        # Ambil emosi
+        try:
+            sayang = role.emotional.sayang if hasattr(role, 'emotional') else 50
+            rindu = role.emotional.rindu if hasattr(role, 'emotional') else 0
+            style = role.emotional.get_current_style().value if hasattr(role, 'emotional') else "neutral"
+        except:
+            sayang, rindu, style = 50, 0, "neutral"
         
         return f"""💕 **{role.name} ({role.nickname})** - {role_id.upper()}
 
@@ -121,9 +140,9 @@ class RoleManager:
 
 "{greeting}"
 
-📊 **Level:** {role.relationship.level}/12 | **Fase:** {role.relationship.phase.value.upper()}
-🎭 **Style:** {role.emotional.get_current_style().value.upper()}
-💕 **Sayang:** {role.emotional.sayang:.0f}% | **Rindu:** {role.emotional.rindu:.0f}%
+📊 **Level:** {level}/12 | **Fase:** {phase.upper()}
+🎭 **Style:** {style.upper()}
+💕 **Sayang:** {sayang:.0f}% | **Rindu:** {rindu:.0f}%
 
 💡 Mereka semua tahu Mas punya Nova, tapi sekarang bisa dekat sesuai level.
 
@@ -174,7 +193,11 @@ Kirim **/batal** kalo mau balik ke Nova.
             # Check level up
             if update_result.get('level_up'):
                 level_baru = update_result.get('new_level', role.relationship.level)
-                notifikasi = f"✨ **Level naik ke {level_baru}/12!** ✨\n\n"
+                level_name = {1: "Malu-malu", 2: "Mulai terbuka", 3: "Goda-godaan",
+                              4: "Dekat", 5: "Sayang", 6: "PACAR/PDKT",
+                              7: "Nyaman", 8: "Eksplorasi", 9: "Bergairah",
+                              10: "Passionate", 11: "Soul Bounded", 12: "Aftercare"}.get(level_baru, f"Level {level_baru}")
+                notifikasi = f"✨ **Level naik ke {level_baru} – {level_name}!** ✨\n\n"
                 respons = notifikasi + respons
             
             logger.info(f"💬 Role {role.name} [Lv{role.relationship.level}] responded")
@@ -212,8 +235,7 @@ Kirim **/batal** kalo mau balik ke Nova.
                 clothing_desc = role.tracker.get_clothing_summary()
             else:
                 clothing_desc = "pakaian biasa"
-        except Exception as e:
-            logger.error(f"Error getting clothing: {e}")
+        except Exception:
             clothing_desc = "pakaian biasa"
 
         # ========== AMBIL POSISI & LOKASI ==========
@@ -427,7 +449,7 @@ RESPON {role.name}:
         """Simpan semua role ke database"""
         for role_id, role in self.roles.items():
             try:
-                await persistent.set_state(f'role_v2_{role_id}', json.dumps(role.to_dict()))
+                await persistent.set_state(f'role_{role_id}', json.dumps(role.to_dict()))
             except Exception as e:
                 logger.error(f"Error saving role {role_id}: {e}")
     
@@ -435,7 +457,7 @@ RESPON {role.name}:
         """Load semua role dari database"""
         for role_id, role in self.roles.items():
             try:
-                data = await persistent.get_state(f'role_v2_{role_id}')
+                data = await persistent.get_state(f'role_{role_id}')
                 if data:
                     role.from_dict(json.loads(data))
                     logger.info(f"📀 Role {role.name} loaded from database")
@@ -447,14 +469,11 @@ RESPON {role.name}:
 # SINGLETON
 # =============================================================================
 
-_role_manager: Optional['RoleManager'] = None
+_role_managers: Dict[int, RoleManager] = {}
 
 
-def get_role_manager() -> RoleManager:
-    global _role_manager
-    if _role_manager is None:
-        _role_manager = RoleManager()
-    return _role_manager
-
-
-role_manager = get_role_manager()
+def get_role_manager(user_id: int = 0) -> RoleManager:
+    """Dapatkan RoleManager untuk user tertentu"""
+    if user_id not in _role_managers:
+        _role_managers[user_id] = RoleManager(user_id)
+    return _role_managers[user_id]
