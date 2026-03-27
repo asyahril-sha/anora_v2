@@ -105,32 +105,43 @@ logger.info("✅ ANORA-V2 partial load complete")
 # GLOBAL VARIABLES
 # =============================================================================
 _application = None
-_user_modes: Dict[int, Dict] = {}
 _backup_dir = Path("data/backups")
 _backup_dir.mkdir(parents=True, exist_ok=True)
 
-# Role managers per user
-_role_managers: Dict[int, object] = {}
+# =============================================================================
+# USER MODE FUNCTIONS (MENGGUNAKAN DATABASE)
+# =============================================================================
+
+async def get_user_mode(user_id: int) -> str:
+    """Ambil mode user dari database"""
+    persistent = await get_anora_persistent()
+    data = await persistent.get_state(f'user_mode_{user_id}')
+    if data:
+        state = json.loads(data)
+        return state.get('mode', 'chat')
+    return 'chat'
 
 
-def get_role_manager(user_id: int):
-    """Dapatkan RoleManager per user"""
-    if user_id not in _role_managers:
-        _role_managers[user_id] = RoleManager(user_id)
-    return _role_managers[user_id]
+async def set_user_mode(user_id: int, mode: str, active_role: Optional[str] = None):
+    """Simpan mode user ke database"""
+    persistent = await get_anora_persistent()
+    state = {
+        'mode': mode,
+        'active_role': active_role,
+        'updated_at': time.time()
+    }
+    await persistent.set_state(f'user_mode_{user_id}', json.dumps(state))
+    logger.info(f"👤 User {user_id} mode saved: {mode}, role: {active_role}")
 
 
-def get_user_mode(user_id: int) -> str:
-    return _user_modes.get(user_id, {}).get('mode', 'chat')
-
-
-def set_user_mode(user_id: int, mode: str, active_role: Optional[str] = None):
-    _user_modes[user_id] = {'mode': mode, 'active_role': active_role}
-    logger.info(f"👤 User {user_id} mode set to: {mode}, active_role: {active_role}")
-
-
-def get_active_role(user_id: int) -> Optional[str]:
-    return _user_modes.get(user_id, {}).get('active_role')
+async def get_active_role(user_id: int) -> Optional[str]:
+    """Ambil active role dari database"""
+    persistent = await get_anora_persistent()
+    data = await persistent.get_state(f'user_mode_{user_id}')
+    if data:
+        state = json.loads(data)
+        return state.get('active_role')
+    return None
 
 
 # =============================================================================
@@ -358,35 +369,25 @@ async def pindah_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =============================================================================
 
 async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /role - FIXED dengan error handling lengkap"""
     user_id = update.effective_user.id
     settings = get_settings()
     
     if user_id != settings.admin_id:
         return
     
-    print(f"[DEBUG] STEP 1: /role command received from user {user_id}")
-    
-    # Parse args
     args = context.args
     if not args:
-        # Show available roles
         roles_info = role_manager.get_all_roles_info(user_id)
         menu = "📋 **Role yang tersedia:**\n\n"
         for r in roles_info:
-            menu += f"• /role {r['id']} - **{r['nama']}** (Level {r['level']})\n"
+            menu += f"• /role {r['id']} - {r['nama']} (Level {r['level']})\n"
         menu += "\n_Ketik /batal kalo mau balik ke Nova._"
         await update.message.reply_text(menu, parse_mode='Markdown')
         return
     
     role_key = args[0].lower()
-    print(f"[DEBUG] STEP 2: raw role_key = {role_key}")
-    
-    # Normalize input
     normalized_key = normalize_role_id(role_key)
-    print(f"[DEBUG] STEP 3: normalized_key = {normalized_key}")
     
-    # Check if role exists
     if normalized_key not in ROLE_MAP:
         available = ", ".join(ROLE_MAP.keys())
         await update.message.reply_text(
@@ -395,28 +396,18 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    print(f"[DEBUG] STEP 4: role exists in ROLE_MAP")
-    
     try:
-        # Switch role
-        print(f"[DEBUG] STEP 5: calling role_manager.switch_role...")
         response = role_manager.switch_role(user_id, normalized_key)
-        print(f"[DEBUG] STEP 6: switch_role completed")
         
-        # Set user mode
-        set_user_mode(user_id, 'role', normalized_key)
+        # 🔥 SIMPAN KE DATABASE 🔥
+        await set_user_mode(user_id, 'role', normalized_key)
         
         await update.message.reply_text(response, parse_mode='Markdown')
-        print(f"[DEBUG] STEP 7: response sent successfully")
         
     except Exception as e:
-        print(f"[DEBUG] ERROR in role_command:")
-        import traceback
-        traceback.print_exc()
-        await update.message.reply_text(
-            f"❌ Terjadi error internal.\n\nError: {str(e)}",
-            parse_mode='Markdown'
-        )
+        logger.error(f"Role command error: {e}", exc_info=True)
+        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
+        
 
 async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /statusrole - Lihat status role yang sedang aktif"""
@@ -1295,14 +1286,14 @@ async def pelacur_confirm_command(update: Update, context: ContextTypes.DEFAULT_
 # =============================================================================
 
 async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /batal"""
     user_id = update.effective_user.id
     settings = get_settings()
     
     if user_id != settings.admin_id:
         return
     
-    set_user_mode(user_id, 'chat')
+    # 🔥 SIMPAN KE DATABASE 🔥
+    await set_user_mode(user_id, 'chat', None)
     
     if ANORA_AVAILABLE:
         roleplay = await get_anora_roleplay()
@@ -1447,7 +1438,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =============================================================================
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler untuk pesan biasa"""
     user_id = update.effective_user.id
     settings = get_settings()
     
@@ -1460,7 +1450,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     logger.info(f"📨 Message from {user_id}: {pesan[:50]}")
     
-    mode = get_user_mode(user_id)
+    # 🔥 AMBIL DARI DATABASE 🔥
+    mode = await get_user_mode(user_id)
+    active_role = await get_active_role(user_id)
+    
+    logger.info(f"📌 Mode: {mode}, Active Role: {active_role}")
     
     if mode == 'paused':
         await update.message.reply_text(
@@ -1469,26 +1463,32 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    if mode == 'role' and ANORA_AVAILABLE:
-        active_role = get_active_role(user_id)
-        logger.info(f"🔍 DEBUG: mode=role, active_role={active_role}, user_id={user_id}")
+    if mode == 'roleplay' and ANORA_AVAILABLE:
+        try:
+            roleplay = await get_anora_roleplay()
+            respons = await roleplay.process(pesan)
+            await update.message.reply_text(respons, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Roleplay error: {e}", exc_info=True)
+            await update.message.reply_text("*Nova bingung sebentar*", parse_mode='Markdown')
+        return
     
+    if mode == 'role' and ANORA_AVAILABLE:
         if active_role:
             try:
-                logger.info(f"📤 Sending to role_manager.chat({active_role}, '{pesan[:50]}')")
                 respons = await role_manager.chat(active_role, pesan)
-                logger.info(f"✅ Role response: {respons[:100]}...")
                 await update.message.reply_text(respons, parse_mode='Markdown')
             except Exception as e:
                 logger.error(f"Role chat error: {e}", exc_info=True)
                 await update.message.reply_text("Maaf, ada error. Coba lagi ya.", parse_mode='Markdown')
             return
         else:
-            logger.warning(f"⚠️ Role mode active but active_role is None for user {user_id}")
-            await update.message.reply_text("Belum ada role aktif, Mas. Gunakan /role dulu ya.", parse_mode='Markdown')
+            await update.message.reply_text(
+                "💜 Role belum aktif. Silakan pilih role dulu dengan **/role [nama]**",
+                parse_mode='Markdown'
+            )
             return
     
-    # Chat mode default
     await update.message.reply_text(
         "*Nova tersenyum*\n\n\"Iya, Mas. Nova dengerin kok.\"",
         parse_mode='Markdown'
