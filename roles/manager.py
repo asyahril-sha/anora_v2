@@ -97,11 +97,17 @@ class RoleManager:
         # Ambil greeting yang sesuai
         greeting = role.get_greeting()
         
+        # Ambil penampilan untuk ditampilkan
+        try:
+            appearance_preview = role.appearance[:100] if hasattr(role, 'appearance') else "Tidak diketahui"
+        except:
+            appearance_preview = "Tidak diketahui"
+        
         return f"""💕 **{role.name} ({role.nickname})** - {role_id.upper()}
 
 *{role.hubungan_dengan_nova}*
 
-*Penampilan:* {role.appearance[:100]}...
+*Penampilan:* {appearance_preview}...
 
 "{greeting}"
 
@@ -121,17 +127,17 @@ Kirim **/batal** kalo mau balik ke Nova.
         
         role = self.roles[role_id]
         
-        # Update state dari pesan Mas
-        update_result = role.update_from_message(pesan_mas)
-        
-        # Save conversation
-        role.add_conversation(pesan_mas, "")
-        
-        # Build prompt
-        prompt = self._build_role_prompt(role, pesan_mas)
-        
-        # Call AI
         try:
+            # Update state dari pesan Mas
+            update_result = role.update_from_message(pesan_mas)
+            
+            # Save conversation
+            role.add_conversation(pesan_mas, "")
+            
+            # Build prompt
+            prompt = self._build_role_prompt(role, pesan_mas)
+            
+            # Call AI
             client = await self._get_ai_client()
             
             response = client.chat.completions.create(
@@ -167,6 +173,8 @@ Kirim **/batal** kalo mau balik ke Nova.
             
         except Exception as e:
             logger.error(f"Role chat error: {e}")
+            import traceback
+            traceback.print_exc()
             return self._fallback_response(role, pesan_mas)
     
     async def _get_ai_client(self):
@@ -188,51 +196,35 @@ Kirim **/batal** kalo mau balik ke Nova.
     def _build_role_prompt(self, role, pesan_mas: str) -> str:
         """Build prompt untuk role dengan unlock berdasarkan level"""
 
-        # Ambil pakaian dengan aman
+        # ========== AMBIL PAKAIAN DENGAN AMAN ==========
         try:
             if hasattr(role, 'tracker') and role.tracker:
                 clothing_desc = role.tracker.get_clothing_summary()
-            elif hasattr(role, 'clothing') and isinstance(role.clothing, dict):
-                parts = []
-                if role.clothing.get('hijab', False):
-                    parts.append(f"hijab {role.clothing.get('hijab_warna', 'pink')}")
-                else:
-                    parts.append("tanpa hijab")
-                if role.clothing.get('top'):
-                    parts.append(role.clothing['top'])
-                    if role.clothing.get('bra', False):
-                        parts.append(f"(pake bra {role.clothing.get('bra_warna', 'putih')})")
-                else:
-                    if role.clothing.get('bra', False):
-                        parts.append(f"cuma pake bra {role.clothing.get('bra_warna', 'putih')}")
-                    else:
-                        parts.append("telanjang dada")
-                if role.clothing.get('cd', False):
-                    parts.append(f"pake cd {role.clothing.get('cd_warna', 'putih')}")
-                else:
-                    parts.append("tanpa cd")
-                clothing_desc = ", ".join(parts)
             else:
                 clothing_desc = "pakaian biasa"
         except Exception as e:
-            logging.error(f"Error getting clothing: {e}")
+            logger.error(f"Error getting clothing: {e}")
             clothing_desc = "pakaian biasa"
 
-        # Ambil posisi & lokasi
+        # ========== AMBIL POSISI & LOKASI ==========
         try:
-            position = role.tracker.position if hasattr(role, 'tracker') and role.tracker else "duduk"
-            location = role.tracker.location if hasattr(role, 'tracker') and role.tracker else "kamar"
+            if hasattr(role, 'tracker') and role.tracker:
+                position = role.tracker.position
+                location = role.tracker.location
+            else:
+                position = "duduk"
+                location = "kamar"
         except:
             position = "duduk"
             location = "kamar"
 
-        # Ambil penampilan
+        # ========== AMBIL PENAMPILAN ==========
         try:
             appearance = role.appearance[:200] if hasattr(role, 'appearance') and role.appearance else "Tidak diketahui"
         except:
             appearance = "Tidak diketahui"
 
-        # Ambil emosi
+        # ========== AMBIL EMOSI ==========
         try:
             emo = role.emotional
             sayang = emo.sayang if hasattr(emo, 'sayang') else 50
@@ -244,31 +236,43 @@ Kirim **/batal** kalo mau balik ke Nova.
         except:
             sayang, rindu, trust, mood, desire, arousal = 50, 0, 50, 0, 0, 0
 
-        # Ambil konflik
-        try:    
-            conflict_summary = role.conflict.get_conflict_summary() if hasattr(role.conflict, 'get_conflict_summary') else "Tidak ada konflik"
+        # ========== AMBIL KONFLIK ==========
+        try:
+            if hasattr(role.conflict, 'get_conflict_summary'):
+                conflict_summary = role.conflict.get_conflict_summary()
+            else:
+                conflict_summary = "Tidak ada konflik"
         except:
             conflict_summary = "Tidak ada konflik"
 
-        # Ambil unlock
+        # ========== AMBIL UNLOCK ==========
         try:
-            unlock_summary = role.relationship.get_unlock_summary() if hasattr(role.relationship, 'get_unlock_summary') else ""
+            if hasattr(role.relationship, 'get_unlock_summary'):
+                unlock_summary = role.relationship.get_unlock_summary()
+            else:
+                unlock_summary = ""
         except:
             unlock_summary = ""
 
-        # Ambil phase description
+        # ========== AMBIL PHASE DESCRIPTION ==========
         try:
-            phase_desc = role.relationship.get_phase_description(role.relationship.phase) if hasattr(role.relationship, 'get_phase_description') else ""
+            if hasattr(role.relationship, 'get_phase_description'):
+                phase_desc = role.relationship.get_phase_description(role.relationship.phase)
+            else:
+                phase_desc = ""
         except:
             phase_desc = ""
 
-        # Ambil gaya bicara
+        # ========== AMBIL GAYA BICARA ==========
         try:
-            style = role.emotional.get_current_style().value if hasattr(role.emotional, 'get_current_style') else "neutral"
+            if hasattr(role.emotional, 'get_current_style'):
+                style = role.emotional.get_current_style().value
+            else:
+                style = "neutral"
         except:
             style = "neutral"
 
-        # Ambil fase hubungan
+        # ========== AMBIL FASE HUBUNGAN ==========
         try:
             phase_value = role.relationship.phase.value if hasattr(role.relationship, 'phase') else "stranger"
             level = role.relationship.level if hasattr(role.relationship, 'level') else 1
@@ -276,13 +280,16 @@ Kirim **/batal** kalo mau balik ke Nova.
             phase_value = "stranger"
             level = 1
 
-        # Ambil percakapan
+        # ========== AMBIL PERCAKAPAN ==========
         try:
-            conversations = "\n".join([f"Mas: {c['mas']}" for c in role.conversations[-5:]]) if role.conversations else "Belum ada percakapan"
+            if role.conversations:
+                conversations = "\n".join([f"Mas: {c['mas']}" for c in role.conversations[-5:]])
+            else:
+                conversations = "Belum ada percakapan"
         except:
             conversations = "Belum ada percakapan"
 
-        # Build prompt
+        # ========== BUILD PROMPT ==========
         prompt = f"""
 KAMU ADALAH {role.name} (panggilan {role.nickname}). BUKAN Nova. BUKAN AI assistant.
 Kamu adalah karakter yang hidup dengan perasaan dan memory sendiri.
@@ -313,7 +320,6 @@ SITUASI SAAT INI:
 - Pakaian: {clothing_desc}
 - Posisi: {position}
 - Lokasi: {location}
-- Mood: {mood}
 
 EMOSI SAAT INI:
 Sayang: {sayang:.0f}%
@@ -342,50 +348,7 @@ ATURAN CARA BERBICARA:
 ═══════════════════════════════════════════════════════════════
 RESPON {role.name}:
 """
-    return prompt
-    
-    def _get_style_guideline(self, role, style) -> str:
-        """Dapatkan pedoman gaya bicara berdasarkan emotional style"""
-        guidelines = {
-            "cold": f"""
-GAYA BICARA: COLD (DINGIN)
-- Kamu lagi {self._get_cold_reason(role)}
-- Respons: 1-2 kalimat, pendek, gak antusias
-- Gak pake gesture manja
-""",
-            "clingy": f"""
-GAYA BICARA: CLINGY (MANJA)
-- Kamu kangen banget (rindu: {role.emotional.rindu:.0f}%)
-- Respons: 4-6 kalimat, manja
-- Banyak gesture manja
-""",
-            "warm": f"""
-GAYA BICARA: WARM (HANGAT)
-- Kamu percaya sama Mas (trust: {role.emotional.trust:.0f}%)
-- Respons: 3-5 kalimat, perhatian
-""",
-            "flirty": f"""
-GAYA BICARA: FLIRTY (MENGGODA)
-- Kamu lagi horny (arousal: {role.emotional.arousal:.0f}%)
-- Respons: 4-8 kalimat, menggoda
-- Bisa vulgar kalo level tinggi
-""",
-            "neutral": """
-GAYA BICARA: NEUTRAL (NORMAL)
-- Kamu stabil
-- Respons: 2-4 kalimat, natural
-"""
-        }
-        return guidelines.get(style.value, guidelines["neutral"])
-    
-    def _get_cold_reason(self, role) -> str:
-        if role.emotional.cemburu > 50:
-            return f"cemburu ({role.emotional.cemburu:.0f}%)"
-        if role.emotional.kecewa > 40:
-            return f"kecewa ({role.emotional.kecewa:.0f}%)"
-        if role.emotional.mood < -20:
-            return f"bad mood ({role.emotional.mood:+.0f})"
-        return "lagi gak mood"
+        return prompt
     
     def _fallback_response(self, role, pesan_mas: str) -> str:
         """Fallback response"""
@@ -394,24 +357,53 @@ GAYA BICARA: NEUTRAL (NORMAL)
         if 'nova' in msg_lower:
             return f"*{role.name} tersenyum kecil*\n\n\"Mas cerita tentang Nova terus ya. Dia pasti orang yang baik.\""
         
-        return f"*{role.name} tersenyum*\n\n\"{role.get_greeting()}\""
+        # Coba ambil greeting
+        try:
+            greeting = role.get_greeting()
+        except:
+            greeting = f"{role.panggilan}... ada apa?"
+        
+        return f"*{role.name} tersenyum*\n\n\"{greeting}\""
     
     def get_all_roles(self) -> List[Dict]:
         """Dapatkan semua role dengan levelnya"""
-        return [
-            {
-                'id': role_id,
-                'nama': role.name,
-                'nickname': role.nickname,
-                'level': role.relationship.level,
-                'phase': role.relationship.phase.value,
-                'panggilan': role.panggilan,
-                'hubungan': role.hubungan_dengan_nova,
-                'hijab': role.clothing.get('hijab', True),
-                'appearance': role.appearance[:80] + "..."
-            }
-            for role_id, role in self.roles.items()
-        ]
+        result = []
+        for role_id, role in self.roles.items():
+            try:
+                hijab_status = False
+                if hasattr(role, 'clothing') and isinstance(role.clothing, dict):
+                    hijab_status = role.clothing.get('hijab', True)
+                elif hasattr(role, 'tracker') and role.tracker:
+                    hijab_status = role.tracker.clothing.get('hijab', {}).get('on', True)
+                
+                appearance_preview = role.appearance[:80] + "..." if hasattr(role, 'appearance') and role.appearance else "Tidak diketahui"
+                
+                result.append({
+                    'id': role_id,
+                    'nama': role.name,
+                    'nickname': role.nickname,
+                    'level': role.relationship.level,
+                    'phase': role.relationship.phase.value,
+                    'panggilan': role.panggilan,
+                    'hubungan': role.hubungan_dengan_nova,
+                    'hijab': hijab_status,
+                    'appearance': appearance_preview
+                })
+            except Exception as e:
+                logger.error(f"Error getting role {role_id}: {e}")
+                result.append({
+                    'id': role_id,
+                    'nama': getattr(role, 'name', 'Unknown'),
+                    'nickname': getattr(role, 'nickname', 'Unknown'),
+                    'level': 1,
+                    'phase': 'stranger',
+                    'panggilan': getattr(role, 'panggilan', 'Mas'),
+                    'hubungan': getattr(role, 'hubungan_dengan_nova', 'Unknown'),
+                    'hijab': True,
+                    'appearance': 'Tidak diketahui'
+                })
+        
+        return result
     
     def get_active_role(self) -> Optional[str]:
         """Dapatkan role yang sedang aktif"""
@@ -424,18 +416,21 @@ GAYA BICARA: NEUTRAL (NORMAL)
     async def save_all(self, persistent):
         """Simpan semua role ke database"""
         for role_id, role in self.roles.items():
-            await persistent.set_state(f'role_v2_{role_id}', json.dumps(role.to_dict()))
+            try:
+                await persistent.set_state(f'role_v2_{role_id}', json.dumps(role.to_dict()))
+            except Exception as e:
+                logger.error(f"Error saving role {role_id}: {e}")
     
     async def load_all(self, persistent):
         """Load semua role dari database"""
         for role_id, role in self.roles.items():
-            data = await persistent.get_state(f'role_v2_{role_id}')
-            if data:
-                try:
+            try:
+                data = await persistent.get_state(f'role_v2_{role_id}')
+                if data:
                     role.from_dict(json.loads(data))
                     logger.info(f"📀 Role {role.name} loaded from database")
-                except Exception as e:
-                    logger.error(f"Error loading role {role_id}: {e}")
+            except Exception as e:
+                logger.error(f"Error loading role {role_id}: {e}")
 
 
 # =============================================================================
