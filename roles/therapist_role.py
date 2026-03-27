@@ -17,7 +17,7 @@ from collections import deque
 from enum import Enum
 
 from .base_role import BaseRole
-from ..core.relationship import RelationshipPhase
+from ..core.relationship_manager import RelationshipPhase
 
 logger = logging.getLogger(__name__)
 
