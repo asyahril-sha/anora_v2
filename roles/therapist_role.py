@@ -18,9 +18,9 @@ from enum import Enum
 
 from .base_role import BaseRole
 try:
-    from ..core.relationship_manager import RelationshipPhase
+    from ..core.relationship import RelationshipPhase
 except ImportError:
-    from core.relationship_manager import RelationshipPhase
+    from core.relationship import RelationshipPhase
 
 logger = logging.getLogger(__name__)
 
