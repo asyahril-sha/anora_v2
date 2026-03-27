@@ -41,25 +41,63 @@ logging.basicConfig(
 logger = logging.getLogger("ANORA-V2")
 
 # =============================================================================
-# IMPORT ANORA-V2 COMPONENTS
+# IMPORT ANORA-V2 COMPONENTS (SAFE MODE)
 # =============================================================================
-ANORA_AVAILABLE = False
+
+ANORA_AVAILABLE = True
+
+logger.info("Importing ANORA-V2 modules...")
+
+# Core
 try:
-    logger.info("Importing ANORA-V2 modules...")
     from core.emotional_engine import get_emotional_engine
+except Exception as e:
+    print("❌ emotional_engine ERROR:", e)
+
+try:
     from core.relationship import get_relationship_manager
+except Exception as e:
+    print("❌ relationship ERROR:", e)
+
+try:
     from core.conflict_engine import get_conflict_engine
+except Exception as e:
+    print("❌ conflict_engine ERROR:", e)
+
+try:
     from core.brain import get_anora_brain
+except Exception as e:
+    print("❌ brain ERROR:", e)
+
+# Memory
+try:
     from memory.persistent import get_anora_persistent
+except Exception as e:
+    print("❌ memory ERROR:", e)
+
+# Roleplay
+try:
     from roleplay.integration import get_anora_roleplay
+    ROLEPLAY_AVAILABLE = True
+except Exception as e:
+    print("❌ roleplay ERROR:", e)
+    ROLEPLAY_AVAILABLE = False
+
+# Roles
+try:
     from roles.manager import get_role_manager
+    ROLE_MANAGER_AVAILABLE = True
+except Exception as e:
+    print("❌ role manager ERROR:", e)
+    ROLE_MANAGER_AVAILABLE = False
+
+# Worker
+try:
     from worker.background import get_anora_worker
-    ANORA_AVAILABLE = True
-    logger.info("✅ ANORA-V2 modules loaded")
-except ImportError as e:
-    logger.warning(f"⚠️ ANORA-V2 not available: {e}")
-    import traceback
-    traceback.print_exc()
+except Exception as e:
+    print("❌ worker ERROR:", e)
+
+logger.info("✅ ANORA-V2 partial load complete")
 
 
 # =============================================================================
