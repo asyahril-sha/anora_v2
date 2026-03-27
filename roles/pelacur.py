@@ -174,7 +174,16 @@ class PelacurRole(BaseRole):
                 
                 self._add_to_short_term(f"Booking: {self.booking_location}", "booking")
                 perubahan.append(f"Booking active! Location: {self.booking_location}")
-        
+
+                # 🔥 TAMBAHKAN FLAG UNTUK RESPON DEAL OTOMATIS 🔥
+                    self.need_to_respond_booking = True
+    
+            # ========== RESPON BOOKING OTOMATIS ==========
+            if hasattr(self, 'need_to_respond_booking') and self.need_to_respond_booking:
+                self.need_to_respond_booking = False
+                # Ini akan diproses di get_greeting atau langsung di sini
+                self.pending_booking_response = True
+                
         # ========== MULAI SESSION ==========
         if self.booking_active and not self.is_active_session and not self.is_break:
             if any(k in msg_lower for k in ['siap', 'mulai', 'ayo', 'yuk', 'udah']):
