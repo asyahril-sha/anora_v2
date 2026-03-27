@@ -1,18 +1,4 @@
 """
-ANORA-V2 Therapist Role - 3 Karakter Random
-Start level 7. Pijat depan & belakang → HJ otomatis (gak nego) → BJ nego → Sex nego.
-Level dinamis: level 7 (normal) → level 11 (intim) setelah "mulai"
-"""
-
-import time
-import random
-import logging
-from typing import Dict, List, Optional, Any, Tuple
-
-from .base import BaseRole
-from core.relationship import RelationshipPhase
-from core.state_tracker import PhysicalCondition
-"""
 ANORA Ultimate - Therapist Role
 3 Karakter Random: Anya Geraldine, Syifa Hadju, Laura Moane
 Start level 7. Flow: Pijat refleksi 1 jam → Pijat vitalitas 2 jam (dengan negosiasi service)
