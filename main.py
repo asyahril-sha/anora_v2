@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
+from roles import role_manager, ROLE_MAP, normalize_role_id
 
 from aiohttp import web
 from telegram import Update
@@ -351,43 +352,70 @@ async def pindah_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(result.get('message', 'Lokasi tidak ditemukan.'), parse_mode='Markdown')
 
 
+# =============================================================================
+# ROLE COMMAND HANDLER
+# =============================================================================
+
 async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /role - FIXED"""
+    """Handler /role - FIXED dengan error handling lengkap"""
     user_id = update.effective_user.id
     settings = get_settings()
     
     if user_id != settings.admin_id:
         return
     
-    text = update.message.text
+    print(f"[DEBUG] STEP 1: /role command received from user {user_id}")
     
-    # Safe parse role command
-    role_id = parse_role_command(text)
-    
-    if not role_id:
+    # Parse args
+    args = context.args
+    if not args:
         # Show available roles
-        manager = get_role_manager(user_id)
-        roles = manager.get_all_roles()
-        
+        roles_info = role_manager.get_all_roles_info(user_id)
         menu = "📋 **Role yang tersedia:**\n\n"
-        for r in roles:
+        for r in roles_info:
             menu += f"• /role {r['id']} - **{r['nama']}** (Level {r['level']})\n"
         menu += "\n_Ketik /batal kalo mau balik ke Nova._"
         await update.message.reply_text(menu, parse_mode='Markdown')
         return
     
-    try:
-        manager = get_role_manager(user_id)
-        set_user_mode(user_id, 'role', role_id)
-        respon = manager.switch_role(role_id)
-        await update.message.reply_text(respon, parse_mode='Markdown')
-    except Exception as e:
-        logger.error(f"Role command error: {e}", exc_info=True)
+    role_key = args[0].lower()
+    print(f"[DEBUG] STEP 2: raw role_key = {role_key}")
+    
+    # Normalize input
+    normalized_key = normalize_role_id(role_key)
+    print(f"[DEBUG] STEP 3: normalized_key = {normalized_key}")
+    
+    # Check if role exists
+    if normalized_key not in ROLE_MAP:
+        available = ", ".join(ROLE_MAP.keys())
         await update.message.reply_text(
-            f"❌ Terjadi error internal: {str(e)}\n\nCoba lagi ya, Mas.",
+            f"Role '{role_key}' gak ada. Pilih: {available}",
             parse_mode='Markdown'
         )
-
+        return
+    
+    print(f"[DEBUG] STEP 4: role exists in ROLE_MAP")
+    
+    try:
+        # Switch role
+        print(f"[DEBUG] STEP 5: calling role_manager.switch_role...")
+        response = role_manager.switch_role(user_id, normalized_key)
+        print(f"[DEBUG] STEP 6: switch_role completed")
+        
+        # Set user mode
+        set_user_mode(user_id, 'role', normalized_key)
+        
+        await update.message.reply_text(response, parse_mode='Markdown')
+        print(f"[DEBUG] STEP 7: response sent successfully")
+        
+    except Exception as e:
+        print(f"[DEBUG] ERROR in role_command:")
+        import traceback
+        traceback.print_exc()
+        await update.message.reply_text(
+            f"❌ Terjadi error internal.\n\nError: {str(e)}",
+            parse_mode='Markdown'
+        )
 
 async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /statusrole - Lihat status role yang sedang aktif"""
