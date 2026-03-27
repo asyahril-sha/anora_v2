@@ -183,30 +183,23 @@ class TemanKantorRole(BaseRole):
         """Respons saat konflik dengan memory awareness"""
         conflict_type = self.conflict.get_active_conflict_type()
         
-        # Cek timeline terakhir
-        recent = self.tracker.short_term[-3:] if self.tracker.short_term else []
-        recent_events = [e.get('kejadian', '') for e in recent]
-        
         # ========== KONFLIK BERDASARKAN PROFESIONALISME ==========
-        
-        # Profesionalisme rendah + level tinggi (sudah dekat)
         if self.professionalism < 30 and self.relationship.level >= 7:
-            return "*tangan gemetar, liat sekeliling, napas gak beraturan, hijab dirapiin gugup*\n\n\"{self.panggilan}... ini... tapi aku gak peduli. *suara bergetar* Aku... aku butuh {self.panggilan}.\""
+            return "*tangan gemetar, liat sekeliling, napas gak beraturan*\n\n\"{self.panggilan}... ini... tapi aku gak peduli. *suara bergetar* Aku... aku butuh {self.panggilan}.\""
         
         # ========== KONFLIK BERDASARKAN CONFLICT ENGINE ==========
-        
-        elif conflict_type and conflict_type.value == "jealousy":
-            return "*diam, fokus ke laptop, jari ngetik gak jelas*\n\n\"{self.panggilan}... kita kerja dulu. Nanti diliatin orang.\""
-        
-        elif conflict_type and conflict_type.value == "disappointment":
-            return "*mata berkaca-kaca, gigit bibir, tahan nangis*\n\n\"{self.panggilan}... aku pikir {self.panggilan} beda...\""
-        
-        elif conflict_type and conflict_type.value == "hurt":
-            return "*duduk di kursi, gak liat {self.panggilan}, air mata jatuh ke keyboard*\n\n\"{self.panggilan}... sakit tau...\""
+        if conflict_type:
+            if conflict_type.value == "jealousy":
+                return "*diam, fokus ke laptop, jari ngetik gak jelas*\n\n\"{self.panggilan}... kita kerja dulu. Nanti diliatin orang.\""
+            
+            if conflict_type.value == "disappointment":
+                return "*mata berkaca-kaca, gigit bibir, tahan nangis*\n\n\"{self.panggilan}... aku pikir {self.panggilan} beda...\""
+            
+            if conflict_type.value == "hurt":
+                return "*duduk di kursi, gak liat {self.panggilan}, air mata jatuh ke keyboard*\n\n\"{self.panggilan}... sakit tau...\""
         
         # ========== KONFLIK BERDASARKAN CURIOSITY ==========
-        
-        elif self.curiosity_nova > 80 and self.relationship.level < 7:
+        if self.curiosity_nova > 80 and self.relationship.level < 7:
             return "*mata berkaca-kaca, tangan memegang ujung hijab*\n\n\"{self.panggilan}... maaf, aku gak bermaksud ganggu hubungan {self.panggilan} sama Nova.\""
         
         # Default
@@ -222,7 +215,6 @@ class TemanKantorRole(BaseRole):
 """
     
     def to_dict(self) -> Dict:
-        """Serialize ke dict dengan semua state"""
         data = super().to_dict()
         data.update({
             'professionalism': self.professionalism,
@@ -233,14 +225,12 @@ class TemanKantorRole(BaseRole):
         return data
     
     def from_dict(self, data: Dict):
-        """Load dari dict"""
         super().from_dict(data)
         self.professionalism = data.get('professionalism', 70)
         self.curiosity_nova = data.get('curiosity_nova', 40)
         self.office_gossip = data.get('office_gossip', 30)
         self.work_boundary = data.get('work_boundary', 80)
         
-        # Update role_flags
         self.role_flags.update({
             'professionalism': self.professionalism,
             'curiosity_nova': self.curiosity_nova,
