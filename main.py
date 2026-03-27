@@ -554,6 +554,75 @@ async def _format_role_status(role, role_id: str) -> str:
 # THERAPIST COMMAND HANDLERS (LENGKAP)
 # =============================================================================
 
+async def therapist_pijat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /pijat - Mulai sesi pijat"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    try:
+        therapist_mgr = await _get_therapist_manager(user_id)
+        therapist = therapist_mgr.get_active()
+        
+        if not therapist:
+            await update.message.reply_text("Role therapist tidak aktif.")
+            return
+        
+        therapist._pending_hand_towel_removal = True
+        result = therapist.get_greeting()
+        await update.message.reply_text(result, parse_mode='Markdown')
+    except Exception as e:
+        logger.error(f"Pijat command error: {e}", exc_info=True)
+        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
+
+
+async def therapist_next_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /next - Lanjut ke fase berikutnya"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+    
+    if user_id != settings.admin_id:
+        return
+    
+    mode = get_user_mode(user_id)
+    if mode != 'role' or get_active_role(user_id) != 'therapist':
+        await update.message.reply_text("Gunakan **/role therapist** dulu ya, Mas.", parse_mode='Markdown')
+        return
+    
+    try:
+        therapist_mgr = await _get_therapist_manager(user_id)
+        therapist = therapist_mgr.get_active()
+        
+        if not therapist:
+            await update.message.reply_text("Role therapist tidak aktif.")
+            return
+        
+        if therapist.session_phase == "reflex_back":
+            therapist.reflex_back_complete = True
+            therapist.session_phase = "reflex_front"
+            therapist._pending_turn_over = True
+            result = therapist.get_greeting()
+        elif therapist.session_phase == "reflex_front":
+            therapist.reflex_front_complete = True
+            therapist.session_phase = "vitalitas_offer"
+            therapist._pending_reflex_front_complete = True
+            result = therapist.get_greeting()
+        else:
+            result = "Belum waktunya /next, Mas. Selesaikan fase saat ini dulu."
+        
+        await update.message.reply_text(result, parse_mode='Markdown')
+    except Exception as e:
+        logger.error(f"Next command error: {e}", exc_info=True)
+        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
+
+
 async def therapist_nego_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler /nego [service] [harga] - Negosiasi harga"""
     user_id = update.effective_user.id
