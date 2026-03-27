@@ -17,10 +17,41 @@ from collections import deque
 from enum import Enum
 
 from .base_role import BaseRole
+
+# Import RelationshipPhase dengan fallback
 try:
     from ..core.relationship import RelationshipPhase
 except ImportError:
-    from core.relationship import RelationshipPhase
+    try:
+        from core.relationship import RelationshipPhase
+    except ImportError:
+        class RelationshipPhase:
+            STRANGER = "stranger"
+            FRIEND = "friend"
+            CLOSE = "close"
+            ROMANTIC = "romantic"
+            INTIMATE = "intimate"
+
+# Fallback untuk state_tracker jika diperlukan
+try:
+    from ..core.state_tracker import IntimacyPhase, PhysicalCondition
+except ImportError:
+    try:
+        from core.state_tracker import IntimacyPhase, PhysicalCondition
+    except ImportError:
+        class IntimacyPhase:
+            NONE = "none"
+            BUILD_UP = "build_up"
+            FOREPLAY = "foreplay"
+            PENETRATION = "penetration"
+            CLIMAX = "climax"
+            AFTERCARE = "aftercare"
+        
+        class PhysicalCondition:
+            FRESH = "fresh"
+            TIRED = "tired"
+            EXHAUSTED = "exhausted"
+            WEAK = "weak"
 
 logger = logging.getLogger(__name__)
 
