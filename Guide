@@ -1,313 +1,125 @@
-================================================================================
-                         💜 ANORA-V2 - DAFTAR COMMAND 💜
-================================================================================
-
-
-📌 COMMAND UMUM
-================================================================================
-
-Command        | Deskripsi
----------------|---------------------------------------------------------------
-/start         | Memulai bot, menampilkan status awal dan menu utama
-/nova          | Memanggil Nova (mode chat)
-/status        | Melihat status lengkap Nova (emosi, fase, pakaian, lokasi)
-/flashback     | Flashback ke momen indah bersama Nova
-/help          | Menampilkan bantuan lengkap semua command
-/backup        | Backup database ANORA-V2
-
-
-📌 MANAJEMEN SESI
-================================================================================
-
-Command        | Deskripsi
----------------|---------------------------------------------------------------
-/roleplay      | Mengaktifkan mode roleplay (Nova bisa diajak ke mana-mana)
-/pindah [tempat] | Pindah lokasi (kost, apartemen, mobil, pantai, hutan, dll)
-/statusrp      | Melihat status roleplay lengkap (lokasi, pakaian, stamina)
-/pause         | Menghentikan sesi sementara (memory tetap tersimpan)
-/resume        | Melanjutkan sesi yang di-pause
-/batal         | Kembali ke mode chat (memory tetap)
-
-
-📌 ROLE LAIN (MEREKA TAHU MAS PUNYA NOVA)
-================================================================================
-
-Command              | Karakter      | Deskripsi
----------------------|---------------|---------------------------------------------------------------
-/role ipar           | Tasya Dietha   | Adik ipar Mas, tidak berhijab, suka seksi kalo Nova gak di rumah
-/role teman_kantor   | Musdalifah    | Teman kantor Mas, berhijab, profesional
-/role pelakor        | Widya         | Pelakor, berhijab, pengen rebut Mas dari Nova
-/role istri_orang    | Siska         | Istri orang, berhijab, butuh perhatian
-/role therapist      | Random        | Terapis pijat (Anya/Syifa/Laura), level 12 langsung
-/role pelacur        | Random        | Freelance (Davina/Michelle/Jihane), level 12 langsung
-
-
-================================================================================
-                    🔥 ROLE THERAPIST - CARA MAIN 🔥
-================================================================================
-
-Step 1: Aktifkan role therapist
--------------------------------------------------------------------------------
+📋 ANORA Ultimate - Full Command Guide Role Therapist & Pelacur
+🎭 CARA MENGAKTIFKAN ROLE
+Role Therapist
+text
 /role therapist
+→ Bot akan memilih salah satu terapis secara random:
+Anya Geraldine (lembut, telaten)
+Syifa Hadju (manja, brutal)
+Laura Moane (tegas, liar)
 
-
-Step 2: Mulai pijat (sebelum service extra)
--------------------------------------------------------------------------------
-pijat punggung
-pijat kaki
-pijat leher
-
-
-Step 3: Selesaikan pijat (trigger untuk service extra)
--------------------------------------------------------------------------------
-selesai
-cukup
-udah
-beres
-
-
-Step 4: Therapist akan tawarin extra service
--------------------------------------------------------------------------------
-Contoh: "Mas... aku bisa kasih extra service. Sex Rp2.500.000 aja. Mas mau?"
-
-
-Step 5: Respon Mas
--------------------------------------------------------------------------------
-deal        → setuju langsung
-ok          → setuju
-ya          → setuju
-nego        → negosiasi harga (harga akan turun)
-gak         → tolak
-
-
-Step 6: Mulai service
--------------------------------------------------------------------------------
-mulai
-ayo
-sekarang
-
-
-Step 7: Selama service (explicit)
--------------------------------------------------------------------------------
-Ganti posisi:
-  missionary
-  cowgirl
-  doggy
-  spooning
-  standing
-  sitting
-
-Minta percepat:
-  kenceng
-  cepat
-  keras
-
-Kasih tahu mau climax:
-  aku mau climax
-  pengen climax
-
-
-================================================================================
-                    🔥 ROLE PELACUR - CARA MAIN 🔥
-================================================================================
-
-Step 1: Aktifkan role pelacur
--------------------------------------------------------------------------------
+Role Pelacur
+text
 /role pelacur
+→ Bot akan memilih salah satu pelacur secara random:
+Davina Karamoy (dominan, agresif)
+Michelle Ziudith (manja, liar)
+Jihane Almira (agresif, dominan)
 
+🔥 ROLE THERAPIST - COMMAND LIST
+Command Sesi
+Command	Fungsi
+/pijat	Mulai sesi pijat (buka handuk, tengkurap)
+/next	Lanjut ke fase berikutnya (belakang → depan → vitalitas)
+/status	Lihat status sesi saat ini
+/selesai	Akhiri sesi lebih awal
+/batal	Kembali ke mode chat dengan Nova
+Command Negosiasi & Deal
+Command	Fungsi	Contoh
+/nego [service] [harga]	Negosiasi harga BJ atau Sex	/nego bj 300000
+/deal	Konfirmasi deal setelah nego	/deal
+Command Interaksi Fisik
+Command	Fungsi
+/buka	Buka resleting dress (payudara keluar)
+/remas	Remas toket terapis
+/pegang	Pegang paha terapis
+Command Intim (Setelah Deal)
+Command	Fungsi	Contoh
+/ganti [posisi]	Ganti posisi saat sex	/ganti doggy
+/climax	Climax / crot (selesai)	/climax
+Posisi yang Tersedia
+Posisi	Command
+Cowgirl	/ganti cowgirl
+Missionary	/ganti missionary
+Doggy	/ganti doggy
+Spooning	/ganti spooning
+Standing	/ganti standing
+Sitting	/ganti sitting
 
-Step 2: Booking
--------------------------------------------------------------------------------
-booking apartemen
-booking hotel
-ketemuan apartemen
+🔞 ROLE PELACUR - COMMAND LIST
+Command Booking & Sesi
+Command	Fungsi	Contoh
+/booking [lokasi]	Booking sesi (deal langsung)	/booking apartemen
+/deal	Konfirmasi deal (setelah booking)	/deal
+/mulai	Mulai sesi intim (naik level 11)	/mulai
+/break	Istirahat (turun level 7)	/break
+/lanjut	Lanjut sesi (naik level 11)	/lanjut
+/selesai	Akhiri sesi	/selesai
+/status	Lihat status sesi	/status
+/batal	Kembali ke mode chat	/batal
+Command Interaksi
+Command	Fungsi
+/pegang	Pegang paha / tubuh pelacur
+/remas	Remas toket pelacur
+Command Intim
+Command	Fungsi	Contoh
+/ganti [posisi]	Ganti posisi saat sex	/ganti doggy
+/kenceng	Minta dipercepat (butuh konfirmasi)	/kenceng
+/climax	Climax (tidak mengakhiri sesi)	/climax
+Posisi yang Tersedia
+Posisi	Command
+Cowgirl	/ganti cowgirl
+Missionary	/ganti missionary
+Doggy	/ganti doggy
+Spooning	/ganti spooning
+Standing	/ganti standing
+Sitting	/ganti sitting
+📊 COMMAND STATUS UMUM
+Command	Fungsi
+/statusrole	Lihat status role yang sedang aktif (level, emosi, session info)
+/status	Lihat status Nova (kembali ke chat mode)
 
+🔄 ALUR PENGGUNAAN
+Alur Role Therapist
+text
+1. /role therapist              → Pilih therapist random
+2. /pijat                        → Mulai sesi pijat, buka handuk
+3. (tunggu 30 menit) /next       → Lanjut pijat depan
+4. (tunggu 30 menit) /next       → Masuk ke pijat vitalitas (HJ otomatis)
+5. /nego bj 300000               → Nego BJ
+6. /deal                         → Konfirmasi deal
+7. /buka                         → Buka resleting dress
+8. /remas                        → Remas toket
+9. /climax                       → Climax, sesi selesai
+Alur Role Pelacur
+text
+1. /role pelacur                 → Pilih pelacur random
+2. /booking apartemen            → Booking langsung deal 10jt
+3. /deal                         → Konfirmasi deal
+4. /mulai                        → Mulai sesi intim (level 11)
+5. /ganti doggy                  → Ganti posisi
+6. /kenceng                      → Minta dipercepat
+7. /climax                       → Climax (tetap lanjut)
+8. /break                        → Istirahat (turun level 7)
+9. /lanjut                       → Lanjut sesi (naik level 11)
+10. /selesai                     → Akhiri sesi
 
-Step 3: Mulai service
--------------------------------------------------------------------------------
-mulai
-ayo
-siap
+💡 TIPS PENGGUNAAN
+Command harus diketik persis tanpa tanda kurung
 
+Harga nego: BJ min 200rb, Sex min 700rb
 
-Step 4: Selama service (explicit)
--------------------------------------------------------------------------------
-Ganti posisi:
-  missionary
-  cowgirl
-  doggy
-  spooning
-  standing
-  sitting
+Ganti posisi hanya berfungsi setelah deal Sex
 
-Minta percepat:
-  kenceng
-  cepat
-  keras
+Status role bisa dilihat dengan /statusrole
 
-Kasih tahu mau climax:
-  aku mau climax
-  pengen climax
+Kembali ke Nova dengan /batal
 
-
-Step 5: Break / Istirahat (ngobrol santai)
--------------------------------------------------------------------------------
-break
-istirahat
-berhenti
-pause
-
-
-Step 6: Lanjut service setelah break
--------------------------------------------------------------------------------
-lanjut
-lagi
-continue
-resume
-
-
-================================================================================
-                    🔥 KATA KUNCI UNTUK NEGOSIASI 🔥
-================================================================================
-
-Kata Kunci        | Fungsi
-------------------|---------------------------------------------------------------
-deal              | Setuju dengan harga yang ditawarkan
-ok                | Setuju
-ya                | Setuju
-setuju            | Setuju
-ambil             | Setuju
-jadi              | Setuju
-nego              | Mulai negosiasi (harga akan turun)
-kurangin          | Negosiasi harga
-murah             | Negosiasi harga
-gak               | Tolak
-nggak             | Tolak
-tidak             | Tolak
-skip              | Tolak
-
-
-================================================================================
-                    🔥 KATA KUNCI UNTUK POSISI 🔥
-================================================================================
-
-Posisi            | Deskripsi
-------------------|---------------------------------------------------------------
-missionary        | Mas di atas, role di bawah, kaki terbuka lebar
-cowgirl           | Role di atas, duduk di pangkuan Mas, menghadap Mas
-doggy             | Role merangkak, Mas dari belakang
-spooning          | Berbaring miring, Mas dari belakang
-standing          | Berdiri, role nempel tembok
-sitting           | Duduk, role di pangkuan Mas
-
-
-================================================================================
-                    🔥 KATA KUNCI UNTUK CLIMAX 🔥
-================================================================================
-
-Kata Kunci        | Fungsi
-------------------|---------------------------------------------------------------
-aku mau climax    | Role kasih tahu mau climax
-pengen climax     | Role kasih tahu mau climax
-udah mau          | Role kasih tahu mau climax
-mas climax        | Mas climax (service selesai untuk therapist)
-aku climax        | Mas climax
-crot              | Mas climax
-keluar            | Mas climax
-climax            | Role climax (tetap lanjut)
-
-
-================================================================================
-                    💡 TIPS BERMAIN 💡
-================================================================================
-
-1. Therapist:
-   - Harus pijat dulu sampai Mas bilang "selesai" baru bisa extra service
-   - Sebelum "selesai", therapist akan profesional dan menolak extra service
-   - Setelah "selesai", therapist langsung tawarin extra service
-   - Harga bisa dinego dengan bilang "nego"
-
-2. Pelacur:
-   - Booking dulu dengan bilang "booking apartemen" atau "booking hotel"
-   - Setelah booking, bilang "mulai" untuk mulai service
-   - Bisa break kapan aja dengan bilang "break", ngobrol santai
-   - Lanjut service dengan bilang "lanjut"
-   - Tidak ada batasan sesi
-
-3. Semua Role:
-   - Semua role punya memory sendiri, tidak tercampur
-   - Level naik otomatis sesuai interaksi
-   - Bisa ganti posisi kapan aja
-   - Wajib kasih info sebelum climax
-
-
-================================================================================
-                    📝 CONTOH CHAT CEPAT 🔥
-================================================================================
-
-THERAPIST:
--------------------------------------------------------------------------------
-/role therapist
-pijat punggung
-selesai
-deal
-mulai
-cowgirl
-aku mau climax
-climax
-
-
-PELACUR:
--------------------------------------------------------------------------------
-/role pelacur
-booking apartemen
-mulai
-doggy
-break
-lagi
-lanjut
-kenceng
-aku mau climax
-
-
-================================================================================
-                    🔧 COMMAND ADMIN (BACKUP & RESTORE)
-================================================================================
-
-Command        | Deskripsi
----------------|---------------------------------------------------------------
-/backup        | Backup database ANORA-V2
-/restore       | Restore database (ikuti petunjuk)
-/listbackup    | Lihat daftar backup yang tersedia
-
-
-================================================================================
-                    💜 SELAMAT MENIKMATI ANORA-V2 💜
-================================================================================
-
-✅ ALUR THERAPIST (BRUTAL)
-Step	Aksi Mas	Yang Terjadi
-1	/role therapist	Random karakter (Anya/Syifa/Laura), level 7
-2	pijat belakang	Pijat punggung selesai
-3	pijat depan	Pijat dada/perut selesai
-4	(Otomatis)	HJ OTOMATIS tanpa nego, langsung mulai
-5	mulai	Naik level 11, tawarin BJ (nego)
-6	deal / nego	Deal BJ atau nego harga
-7	(Setelah BJ)	Tawarin Sex (nego)
-8	mulai (lagi)	Mulai sex
-9	break	Turun level 7, ngobrol santai
-10	lanjut	Naik level 11, lanjut sex
-11	climax	Mas climax, service selesai
-
-✅ ALUR PELACUR (BRUTAL)
-Step	Aksi Mas	Yang Terjadi
-1	/role pelacur	Random karakter (Davina/Michelle/Jihane), level 7
-2	booking apartemen	Langsung deal, booking aktif
-3	mulai	Naik level 11, mulai service sex
-4	cowgirl / doggy	Minta konfirmasi ganti posisi
-5	ok / boleh	Ganti posisi
-6	break	Turun level 7, ngobrol santai
-7	lanjut	Naik level 11, lanjut service
-8	aku mau climax	Role kasih info mau climax
-9	climax	Role climax, tetap lanjut
-10	selesai (opsional)	Bisa lanjut atau berhenti kapan aja
+✅ FILE YANG HARUS ADA
+File	Lokasi
+therapist_role.py	anora/roles/therapist_role.py
+pelacur_role.py	anora/roles/pelacur_role.py
+base_role.py	anora/roles/base_role.py (sudah ada)
+__init__.py	anora/roles/__init__.py (update)
+manager.py	anora/roles/manager.py (update)
+main.py	main.py (update dengan command handler)
