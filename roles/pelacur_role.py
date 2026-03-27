@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 
 from .base_role import BaseRole
-from ..core.relationship_manager import RelationshipPhase
+from ..core.relationship import RelationshipPhase
 from ..core.state_tracker import IntimacyPhase, PhysicalCondition
 
 logger = logging.getLogger(__name__)
