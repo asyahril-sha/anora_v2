@@ -441,8 +441,8 @@ async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     try:
-        # manager = get_role_manager()
-        role = manager.get_role(active_role_id)
+        # PAKAI role_manager LANGSUNG (singleton)
+        role = role_manager.get_role(active_role_id)
         
         if not role:
             await update.message.reply_text("Role tidak ditemukan.")
@@ -1482,8 +1482,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         active_role = get_active_role(user_id)
         if active_role:
             try:
-                # manager = get_role_manager()
-                respons = await manager.chat(active_role, pesan)
+                # PAKAI role_manager LANGSUNG (singleton)
+                respons = await role_manager.chat(active_role, pesan)
                 await update.message.reply_text(respons, parse_mode='Markdown')
             except Exception as e:
                 logger.error(f"Role chat error: {e}", exc_info=True)
