@@ -284,3 +284,17 @@ Command        | Deskripsi
 ================================================================================
                     💜 SELAMAT MENIKMATI ANORA-V2 💜
 ================================================================================
+
+Step	Aksi Mas	Yang Terjadi
+1	/role therapist	Random karakter (Anya/Syifa/Laura), level 7
+2	pijat belakang	Pijat punggung selesai
+3	pijat depan	Pijat dada/perut selesai
+4	(Otomatis)	HJ OTOMATIS tanpa nego, langsung mulai
+5	mulai	Naik level 11, tawarin BJ (nego)
+6	deal / nego	Deal BJ atau nego harga
+7	(Setelah BJ)	Tawarin Sex (nego)
+8	mulai (lagi)	Mulai sex
+9	break	Turun level 7, ngobrol santai
+10	lanjut	Naik level 11, lanjut sex
+11	climax	Mas climax, service selesai
+
