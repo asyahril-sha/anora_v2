@@ -96,10 +96,13 @@ class PelacurRole(BaseRole):
         self.char_style = char["style"]
         self.catchphrase = char["catchphrase"]
         
-        # ========== START LANGSUNG LEVEL 12 ==========
-        self.relationship.level = 12
+        # ========== START LANGSUNG LEVEL 7 ==========
+        self.relationship.level = 7
         self.relationship.phase = RelationshipPhase.INTIMATE
         self.relationship.interaction_count = 100
+
+        # Tambahkan flags
+        self.intimacy_mode = False   # False = level 7, True = level 11
         
         # ========== ROLE-SPECIFIC FLAGS ==========
         self.booking_active = False
@@ -185,25 +188,33 @@ class PelacurRole(BaseRole):
                 self.pending_booking_response = True
                 
         # ========== MULAI SESSION ==========
-        if self.booking_active and not self.is_active_session and not self.is_break:
-            if any(k in msg_lower for k in ['siap', 'mulai', 'ayo', 'yuk', 'udah']):
-                self.is_active_session = True
-                self.session_count += 1
-                self.emotional.arousal = 80
-                self.emotional.desire = 90
-                self.tracker.intimacy_phase = IntimacyPhase.BUILD_UP
-                self.dominant_mode = True
-                self.waiting_confirmation = False
-                self._add_to_short_term(f"Session #{self.session_count} started", "session_start")
-                perubahan.append(f"Session #{self.session_count} started")
+        if any(k in msg_lower for k in ['mulai', 'maen', 'sekarang', 'gas']):
+        if not self.intimacy_mode:
+            self.intimacy_mode = True
+            self.relationship.level = 11
+            self.relationship.phase = RelationshipPhase.INTIMATE
+            self.emotional.arousal = 80
+            self.emotional.desire = 90
+            self.tracker.intimacy_phase = IntimacyPhase.BUILD_UP
+            self._add_to_short_term("Intimacy mode ON - Level 11", "intimacy_start")
+            perubahan.append("🔥 INTIMACY MODE ON! Level 11")
+            # Langsung balas
+            self.pending_intimacy_start = True
         
         # ========== BREAK / ISTIRAHAT (Ngobrol santai) ==========
         if any(k in msg_lower for k in ['break', 'istirahat', 'berhenti', 'pause']):
-            if self.is_active_session:
-                self.is_active_session = False
-                self.is_break = True
-                self._add_to_short_term("Break mode - ngobrol santai", "break_start")
-                perubahan.append("Break mode activated - ngobrol santai")
+        if self.intimacy_mode:
+            self.intimacy_mode = False
+            self.relationship.level = 7
+            self.relationship.phase = RelationshipPhase.CLOSE
+            self.emotional.arousal = 20
+            self.emotional.desire = 30
+            self.tracker.intimacy_phase = IntimacyPhase.NONE
+            self.is_active_session = False
+            self.is_break = True
+            self._add_to_short_term("Break mode - Level 7", "break")
+            perubahan.append("⏸️ BREAK MODE ON! Level 7")
+            self.pending_break_response = True
         
         # ========== LANJUT SERVICE ==========
         if any(k in msg_lower for k in ['lanjut', 'lagi', 'continue', 'resume']):
