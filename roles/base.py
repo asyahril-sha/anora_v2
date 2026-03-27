@@ -594,6 +594,39 @@ RESPON {self.name}:
     def _get_flags_summary(self) -> str:
         """Dapatkan ringkasan flags - OVERRIDE DI SUBCLASS"""
         return ""
+        
+    def _format_clothing(self) -> str:
+        """Format pakaian untuk display"""
+        try:
+            if hasattr(self, 'tracker') and self.tracker:
+                return self.tracker.get_clothing_summary()
+        except:
+            pass
+    
+        parts = []
+        if self.clothing.get('hijab', False):
+            parts.append(f"hijab {self.clothing.get('hijab_warna', 'pink')}")
+        else:
+            parts.append("tanpa hijab")
+    
+        if self.clothing.get('top'):
+            parts.append(self.clothing['top'])
+            if self.clothing.get('bra', False):
+                parts.append(f"(pake bra {self.clothing.get('bra_warna', 'putih')})")
+            else:
+                parts.append("(tanpa bra)")
+        else:
+            if self.clothing.get('bra', False):
+                parts.append(f"cuma pake bra {self.clothing.get('bra_warna', 'putih')}")
+            else:
+                parts.append("telanjang dada")
+    
+        if self.clothing.get('cd', False):
+            parts.append(f"pake cd {self.clothing.get('cd_warna', 'putih')}")
+        else:
+            parts.append("tanpa cd")
+    
+        return ", ".join(parts)
     
     # =========================================================================
     # SERIALIZATION
