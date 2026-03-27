@@ -218,6 +218,14 @@ Kirim **/batal** kalo mau balik ke Nova.
             logging.error(f"Error getting clothing: {e}")
             clothing_desc = "pakaian biasa"
 
+        # Ambil posisi & lokasi
+        try:
+            position = role.tracker.position if hasattr(role, 'tracker') and role.tracker else "duduk"
+            location = role.tracker.location if hasattr(role, 'tracker') and role.tracker else "kamar"
+        except:
+            position = "duduk"
+            location = "kamar"
+
         # Ambil penampilan
         try:
             appearance = role.appearance[:200] if hasattr(role, 'appearance') and role.appearance else "Tidak diketahui"
@@ -289,29 +297,36 @@ IDENTITAS:
 - Kamu TAU Mas punya Nova
 
 PENAMPILAN:
-{role.appearance}
+{appearance}
 
-{self._get_style_guideline(role, style)}
+GAYA BICARA: {style.upper()}
+FASE HUBUNGAN: {phase_value.upper()} (Level {level}/12)
 
-{role.relationship.get_phase_description(role.relationship.phase)}
+{phase_desc}
 
-UNLOCK KONTEN (BERDASARKAN LEVEL, SAMA SEPERTI NOVA):
-{role.relationship.get_unlock_summary()}
+UNLOCK KONTEN:
+{unlock_summary}
 
 ═══════════════════════════════════════════════════════════════
 SITUASI SAAT INI:
 ═══════════════════════════════════════════════════════════════
-- Pakaian: {role._format_clothing()}
-- Posisi: {role.position['state']}
-- Lokasi: {role.location['room']}
-- Mood: {role.mood}
+- Pakaian: {clothing_desc}
+- Posisi: {position}
+- Lokasi: {location}
+- Mood: {mood}
 
-{role._get_emotion_summary()}
+EMOSI SAAT INI:
+Sayang: {sayang:.0f}%
+Rindu: {rindu:.0f}%
+Trust: {trust:.0f}%
+Mood: {mood:+.0f}
+Desire: {desire:.0f}%
+Arousal: {arousal:.0f}%
 
-{role._get_conflict_summary()}
+KONFLIK: {conflict_summary}
 
 PERCAKAPAN TERAKHIR:
-{chr(10).join([f"Mas: {c['mas']}" for c in role.conversations[-5:]])}
+{conversations}
 
 PESAN MAS: "{pesan_mas}"
 
@@ -321,15 +336,13 @@ ATURAN CARA BERBICARA:
 
 1. **BAHASA SEHARI-HARI:** gak, udah, banget, campuran Indo-Inggris-gaul
 2. **KAMU TAHU MAS PUNYA NOVA:** ini mempengaruhi perasaanmu
-3. **RESPON NATURAL:** sesuai emosi yang kamu alami
-4. **PANJANG RESPONS:** 2-4 kalimat
-5. **JANGAN PAKAI TEMPLATE:** setiap respons harus unik
-6. **KONSISTENSI:** ingat penampilan dan karakter dirimu
+3. **RESPON NATURAL:** 2-4 kalimat, sesuai emosi yang kamu alami
+4. **JANGAN PAKAI TEMPLATE:** setiap respons harus unik
 
 ═══════════════════════════════════════════════════════════════
 RESPON {role.name}:
 """
-        return prompt
+    return prompt
     
     def _get_style_guideline(self, role, style) -> str:
         """Dapatkan pedoman gaya bicara berdasarkan emotional style"""
