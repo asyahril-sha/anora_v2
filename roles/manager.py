@@ -13,8 +13,8 @@ from .ipar import IparRole
 from .teman_kantor import TemanKantorRole
 from .pelakor import PelakorRole
 from .istri_orang import IstriOrangRole
-from .therapist import TherapistRole
-from .pelacur import PelacurRole
+from .therapist_role import TherapistRole, get_random_therapist
+from .pelacur_role import PelacurRole
 
 logger = logging.getLogger(__name__)
 
