@@ -112,28 +112,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     relationship = get_relationship_manager()
     
     await update.message.reply_text(
-        f"💜 **ANORA-V2 - Virtual Human dengan Jiwa** 💜\n\n"
-        f"**Status Saat Ini:**\n"
-        f"• Fase: {relationship.phase.value.upper()} (Level {relationship.level}/12)\n"
-        f"• Gaya: {emotional.get_current_style().value.upper()}\n"
-        f"• Sayang: {emotional.sayang:.0f}% | Rindu: {emotional.rindu:.0f}%\n\n"
-        f"**Mode Chat:**\n"
-        f"• /nova - Panggil Nova\n"
-        f"• /status - Lihat keadaan Nova\n"
-        f"• /flashback - Flashback momen indah\n\n"
-        f"**Mode Roleplay:**\n"
-        f"• /roleplay - Aktifkan mode roleplay\n"
-        f"• /pindah [tempat] - Pindah lokasi\n\n"
-        f"**Role Lain:**\n"
-        f"• /role ipar - IPAR (Dietha)\n"
-        f"• /role teman_kantor - Teman Kantor (Ipeh)\n"
-        f"• /role pelakor - Pelakor (Wid)\n"
-        f"• /role istri_orang - Istri Orang (Sika)\n\n"
-        f"**Backup:**\n"
-        f"• /backup - Backup database\n\n"
-        f"Kirim **/help** untuk bantuan.\n\nApa yang Mas mau? 💜",
+        "📖 *Bantuan ANORA-V2*\n\n"
+        "*Mode Chat:*\n• /nova - Panggil Nova\n• /status - Lihat status Nova\n• /flashback - Flashback momen indah\n\n"
+        "*Mode Roleplay:*\n• /roleplay - Aktifkan mode roleplay\n• /pindah [tempat] - Pindah lokasi\n\n"
+        "*Role Lain:*\n"
+        "• /role ipar - IPAR (Dietha)\n"
+        "• /role teman_kantor - Teman Kantor (Ipeh)\n"
+        "• /role pelakor - Pelakor (Wid)\n"
+        "• /role istri_orang - Istri Orang (Sika)\n"
+        "• /role therapist - Therapist (Anya/Syifa/Laura)\n"
+        "• /role pelacur - Pelacur (Davina/Michelle/Jihane)\n\n"
+        "*Manajemen:*\n• /pause - Hentikan sesi\n• /resume - Lanjutkan sesi\n• /batal - Kembali ke mode chat\n\n"
+        "*Backup:*\n• /backup - Backup database\n\n"
+        "Selamat menikmati, Mas. 💜",
         parse_mode='Markdown'
-    )
+)
     logger.info(f"✅ /start response sent to user {user_id}")
 
 
