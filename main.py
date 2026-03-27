@@ -767,6 +767,7 @@ class AnoraBot:
         app.add_handler(CommandHandler("roleplay", roleplay_command))
         app.add_handler(CommandHandler("pindah", pindah_command))
         app.add_handler(CommandHandler("role", role_command))
+        app.add_handler(CommandHandler("statusrole", statusrole_command))
         app.add_handler(CommandHandler("batal", back_to_nova))
         app.add_handler(CommandHandler("pause", pause_session))
         app.add_handler(CommandHandler("resume", resume_session))
