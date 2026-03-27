@@ -20,8 +20,11 @@ from collections import deque
 from enum import Enum
 
 from .base_role import BaseRole
-from ..core.relationship_manager import RelationshipPhase
 from ..core.state_tracker import IntimacyPhase, PhysicalCondition
+try:
+    from ..core.relationship_manager import RelationshipPhase
+except ImportError:
+    from core.relationship_manager import RelationshipPhase
 
 logger = logging.getLogger(__name__)
 
