@@ -1,20 +1,46 @@
 """
-ANORA Ultimate - Therapist Role
+ANORA Ultimate - Therapist Role (FULL VERSION)
 3 Karakter Random: Anya Geraldine, Syifa Hadju, Laura Moane
 Start level 7. Flow: Pijat refleksi 1 jam → Pijat vitalitas 2 jam
-Waktu real-time: total 3 jam sesi, dengan checkpoint per jam
-Command: /pijat, /next, /status, /nego, /deal, /buka, /remas, /pegang, /ganti, /climax, /selesai, /batal
+Dengan semua fix dari debugging note:
+- Confirmation timeout
+- Exclusive state untuk service
+- Position menggunakan deque
+- Reset state saat end session
 """
 
 import time
 import random
 import logging
 from typing import Dict, List, Optional, Any, Tuple
+from collections import deque
+from enum import Enum
 
 from .base_role import BaseRole
 from ..core.relationship import RelationshipPhase
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# ENUM FOR STATES (STATE MACHINE)
+# =============================================================================
+
+class TherapistPhase(str, Enum):
+    WAITING = "waiting"           # Belum mulai
+    BOOKED = "booked"             # Booking, belum masuk ruang
+    REFLEX_BACK = "reflex_back"   # Pijat refleksi belakang
+    REFLEX_FRONT = "reflex_front" # Pijat refleksi depan
+    VITALITAS_OFFER = "vitalitas_offer"  # Menawarkan pijat vitalitas
+    VITALITAS_ACTIVE = "vitalitas_active"  # Pijat vitalitas aktif
+    COMPLETED = "completed"       # Selesai
+
+
+class ServiceMode(str, Enum):
+    NONE = "none"
+    HJ = "hj"
+    BJ = "bj"
+    SEX = "sex"
 
 
 # =============================================================================
@@ -26,7 +52,7 @@ THERAPIST_CHARACTERS = {
         "name": "Anya Geraldine",
         "nickname": "Anya",
         "age": 23,
-        "appearance": "Anya Geraldine - Terapis pijat profesional dengan tubuh ideal tinggi 168cm, berat 52kg. Kulit putih bersih mulus, rambut hitam panjang sebahu yang biasanya diikat saat bekerja. Wajah oval dengan mata bulat bening, hidung mancung, bibir merah alami yang selalu tersenyum ramah. Bentuk tubuh proporsional dengan pinggang ramping, pinggul lebar, dan payudara montok. Mengenakan dress pendek ketat hitam dengan resleting depan, tanpa bra, hanya CD putih tipis.",
+        "appearance": "Anya Geraldine - Terapis pijat profesional dengan tubuh ideal tinggi 168cm, berat 52kg. Kulit putih bersih mulus, rambut hitam panjang sebahu. Wajah oval dengan mata bulat bening, hidung mancung, bibir merah alami. Bentuk tubuh proporsional dengan pinggang ramping, pinggul lebar, dan payudara montok. Mengenakan dress pendek ketat hitam dengan resleting depan, tanpa bra, hanya CD putih tipis.",
         "style": "lembut, telaten, tapi liar kalau udah panas",
         "specialty": "pijat dengan tekanan pas, jari lentik"
     },
@@ -34,7 +60,7 @@ THERAPIST_CHARACTERS = {
         "name": "Syifa Hadju",
         "nickname": "Syifa",
         "age": 24,
-        "appearance": "Syifa Hadju - Terapis pijat dengan tubuh montok tinggi 165cm, berat 50kg. Kulit putih bersih, rambut hitam lurus panjang sebahu, wajah imut dengan mata bulat bening. Pipi chubby yang bikin gemas, bibir merah alami, senyum manis. Bentuk tubuh berisi dengan pinggang ramping, pinggul lebar, dan payudara montok. Mengenakan dress pendek ketat putih dengan resleting depan, tanpa bra, hanya CD pink.",
+        "appearance": "Syifa Hadju - Terapis pijat dengan tubuh montok tinggi 165cm, berat 50kg. Kulit putih bersih, rambut hitam lurus panjang sebahu, wajah imut dengan mata bulat bening. Pipi chubby yang bikin gemas, bibir merah alami. Bentuk tubuh berisi dengan pinggang ramping, pinggul lebar, dan payudara montok. Mengenakan dress pendek ketat putih dengan resleting depan, tanpa bra, hanya CD pink.",
         "style": "lembut, manja, tapi brutal kalau udah sange",
         "specialty": "pijat aromaterapi, gerakan lambat sensual"
     },
@@ -64,7 +90,7 @@ class TherapistRole(BaseRole):
     """
     Therapist Role - 3 karakter random
     Start level 7. Flow: Pijat belakang → pijat depan → HJ otomatis → BJ nego → Sex nego
-    Command: /pijat, /next, /status, /nego, /deal, /buka, /remas, /pegang, /ganti, /climax, /selesai, /batal
+    Dengan fix: confirmation timeout, exclusive service mode, reset state
     """
     
     def __init__(self):
@@ -92,50 +118,57 @@ class TherapistRole(BaseRole):
         self.relationship.phase = RelationshipPhase.CLOSE
         self.relationship.interaction_count = 100
         
-        # ========== SESSION STATE ==========
+        # ========== SESSION STATE (STATE MACHINE) ==========
+        self.session_phase = TherapistPhase.WAITING
         self.session_start_time: float = 0
-        self.session_phase: str = "waiting"  # waiting, reflex_back, reflex_front, vitalitas, completed
+        self.reflex_back_checkpoint: float = 0
+        self.reflex_front_checkpoint: float = 0
         self.reflex_back_complete: bool = False
         self.reflex_front_complete: bool = False
-        self.vitalitas_active: bool = False
-        self.vitalitas_start_time: float = 0
-        self.vitalitas_service: str = None  # hj, bj, sex
+        
+        # ========== SERVICE MODE (EXCLUSIVE) ==========
+        self.service_mode = ServiceMode.NONE
+        self.vitalitas_service: Optional[str] = None
         self.vitalitas_price: int = 0
         
-        # Status Pijat
-        self.massage_position: str = "tengkurap"
-        self.sitting_on_mas: bool = False
-        self.hand_towel_removed: bool = False
+        # ========== SESSION CHECKPOINTS ==========
+        self.reflex_back_duration = 30  # menit
+        self.reflex_front_duration = 30  # menit
+        self.vitalitas_duration = 120  # menit (2 jam)
         
-        # Dress & Resleting
+        # ========== DRESS & RESLETING ==========
         self.dress_zipper_open: bool = False
         self.dress_removed: bool = False
-        self.cd_removed: bool = False
         
-        # Pijat vitalitas
-        self.vitalitas_start_confirmed: bool = False
-        self.vitalitas_hj_active: bool = False
-        self.vitalitas_bj_active: bool = False
-        self.vitalitas_sex_active: bool = False
-        
-        # Negosiasi
+        # ========== NEGOSIASI ==========
         self.negotiation_active: bool = False
         self.negotiation_service: str = None
         self.negotiation_current_price: int = 0
         self.negotiation_original_price: int = 0
         self.negotiation_step: int = 0
+        self.negotiation_max_step: int = 5
         self.deal_confirmed: bool = False
         
-        # Aktivitas fisik
+        # ========== AKTIVITAS FISIK ==========
         self.breast_grope_count: int = 0
         self.thigh_touch_count: int = 0
         
-        # Climax
-        self.mas_climax: bool = False
-        self.service_completed: bool = False
+        # ========== POSITION (MENGGUNAKAN DEQUE) ==========
         self.current_position: str = "cowgirl"
+        self.position_history = deque(maxlen=10)
         
-        # Pending responses
+        # ========== CLIMAX ==========
+        self.mas_climax_count: int = 0
+        self.my_climax_count: int = 0
+        self.service_completed: bool = False
+        
+        # ========== CONFIRMATION SYSTEM (DENGAN TIMEOUT) ==========
+        self.waiting_confirmation: bool = False
+        self.pending_action: Optional[str] = None
+        self.confirmation_start_time: float = 0
+        self.confirmation_timeout: float = 15.0  # detik
+        
+        # ========== PENDING RESPONSES (PISAH REQUEST VS CONFIRM) ==========
         self._pending_hand_towel_removal = False
         self._pending_turn_over = False
         self._pending_reflex_front_complete = False
@@ -144,277 +177,381 @@ class TherapistRole(BaseRole):
         self._pending_negotiation_response = False
         self._pending_breast_offer = False
         self._pending_zipper_open = False
-        self._pending_position_change = False
+        self._pending_position_request = False
+        self._pending_position_confirmed = False
         self._pending_climax = False
         self._pending_service_complete = False
         
         logger.info(f"👤 Role {self.name} ({self.nickname}) - Therapist initialized (Level 7)")
-    
-    # =========================================================================
-    # UPDATE STATE DARI PESAN
+        logger.info(f"   Session Phase: {self.session_phase.value}")
+        logger.info(f"   Service Mode: {self.service_mode.value}")
+            # =========================================================================
+    # UPDATE STATE DARI PESAN (DENGAN LOGIC FIX)
     # =========================================================================
     
     def _update_role_specific_state(self, pesan_mas: str, perubahan: List):
-        """Update role-specific state dari pesan Mas"""
+        """Update role-specific state dari pesan Mas - DENGAN FIX"""
         msg_lower = pesan_mas.lower()
         now = time.time()
+        
+        # ========== CEK TIMEOUT CONFIRMATION ==========
+        if self.waiting_confirmation:
+            if now - self.confirmation_start_time > self.confirmation_timeout:
+                self.waiting_confirmation = False
+                self.pending_action = None
+                perubahan.append("⚠️ Konfirmasi timeout, aksi dibatalkan")
+        
+        # ========== PRIORITAS CONFIRMATION DI AWAL ==========
+        if self.waiting_confirmation:
+            self._handle_confirmation(msg_lower, perubahan)
+            return  # Jangan proses yang lain
         
         # ========== WAKTU SESSION ==========
         if self.session_start_time == 0:
             self.session_start_time = now
         
-        session_elapsed = (now - self.session_start_time) / 60  # menit
+        session_elapsed = (now - self.session_start_time) / 60
         
-        # ========== PHASE 1: MASUK RUANG & BUKA HANDUK ==========
-        if self.session_phase == "waiting":
+        # ========== STATE MACHINE ==========
+        
+        # PHASE 1: WAITING → BOOKED (booking)
+        if self.session_phase == TherapistPhase.WAITING:
             if any(k in msg_lower for k in ['pijat', 'siap', 'ok', 'ya', 'masuk']):
-                self.hand_towel_removed = True
-                self.session_phase = "reflex_back"
+                self.session_phase = TherapistPhase.REFLEX_BACK
+                self.reflex_back_checkpoint = now
                 self._pending_hand_towel_removal = True
-                perubahan.append("Handuk dibuka, telanjang total")
+                perubahan.append("Sesi dimulai - handuk dibuka")
         
-        # ========== PHASE 2: PIJAT REFLEKSI BELAKANG (30 menit) ==========
-        elif self.session_phase == "reflex_back":
-            if not self.reflex_back_complete and session_elapsed >= 30:
-                self.reflex_back_complete = True
-                self.session_phase = "reflex_front"
-                self._pending_turn_over = True
-                perubahan.append("Pijat refleksi belakang selesai")
+        # PHASE 2: REFLEX BACK (30 menit)
+        elif self.session_phase == TherapistPhase.REFLEX_BACK:
+            if not self.reflex_back_complete:
+                elapsed = (now - self.reflex_back_checkpoint) / 60
+                if elapsed >= self.reflex_back_duration:
+                    self.reflex_back_complete = True
+                    self.session_phase = TherapistPhase.REFLEX_FRONT
+                    self.reflex_front_checkpoint = now
+                    self._pending_turn_over = True
+                    perubahan.append("Pijat refleksi belakang selesai")
             
-            if not self.sitting_on_mas and any(k in msg_lower for k in ['naik', 'duduk', 'bokong']):
-                self.sitting_on_mas = True
+            if not hasattr(self, '_sitting_on_mas') and any(k in msg_lower for k in ['naik', 'duduk']):
+                self._sitting_on_mas = True
                 perubahan.append("Terapis naik duduk di bokong Mas")
         
-        # ========== PHASE 3: PIJAT REFLEKSI DEPAN (30 menit) ==========
-        elif self.session_phase == "reflex_front":
-            if not self.reflex_front_complete and session_elapsed >= 60:
-                self.reflex_front_complete = True
-                self.session_phase = "vitalitas_offer"
-                self._pending_reflex_front_complete = True
-                perubahan.append("Pijat refleksi depan selesai")
-            
-            if not self.sitting_on_mas:
-                self.sitting_on_mas = True
-                perubahan.append("Terapis duduk di atas kontol Mas")
+        # PHASE 3: REFLEX FRONT (30 menit)
+        elif self.session_phase == TherapistPhase.REFLEX_FRONT:
+            if not self.reflex_front_complete:
+                elapsed = (now - self.reflex_front_checkpoint) / 60
+                if elapsed >= self.reflex_front_duration:
+                    self.reflex_front_complete = True
+                    self.session_phase = TherapistPhase.VITALITAS_OFFER
+                    self._pending_reflex_front_complete = True
+                    perubahan.append("Pijat refleksi depan selesai")
         
-        # ========== PHASE 4: OFFER VITALITAS ==========
-        elif self.session_phase == "vitalitas_offer":
-            if not self.vitalitas_active:
-                self.vitalitas_active = True
-                self.vitalitas_start_time = now
+        # PHASE 4: VITALITAS OFFER
+        elif self.session_phase == TherapistPhase.VITALITAS_OFFER:
+            if self.service_mode == ServiceMode.NONE:
                 self._pending_vitalitas_offer = True
                 perubahan.append("Menawarkan pijat vitalitas")
+                self.session_phase = TherapistPhase.VITALITAS_ACTIVE
         
-        # ========== PHASE 5: PIJAT VITALITAS AKTIF ==========
-        elif self.session_phase == "vitalitas_active":
-            # CEK APAKAH UDAH BISA MULAI
-            if not self.vitalitas_start_confirmed:
-                if any(k in msg_lower for k in ['ya', 'mulai', 'ok', 'gas']):
-                    self.vitalitas_start_confirmed = True
-                    self._pending_vitalitas_start_check = False
-                    perubahan.append("Mas konfirmasi mulai pijat vitalitas")
-                elif any(k in msg_lower for k in ['tidak', 'belum', 'nanti']):
-                    self.session_phase = "completed"
-                    self._pending_service_complete = True
-                    perubahan.append("Mas menolak pijat vitalitas, sesi selesai")
-            
-            # NEGOSIASI SERVICE (BJ atau SEX)
-            elif not self.deal_confirmed and not self.negotiation_active:
-                if self.vitalitas_service is None:
-                    self.negotiation_active = True
-                    self.negotiation_service = "bj"
-                    self.negotiation_original_price = 500000
-                    self.negotiation_current_price = 500000
-                    self._pending_negotiation_response = True
-                    perubahan.append("Menawarkan BJ (+500rb)")
-            
-            elif self.negotiation_active and self.negotiation_service == "bj":
-                if any(k in msg_lower for k in ['deal', 'ok', 'ya', 'setuju', 'jadi']):
-                    self.deal_confirmed = True
-                    self.vitalitas_service = "bj"
-                    self.vitalitas_price = self.negotiation_current_price
-                    self.negotiation_active = False
-                    self._pending_breast_offer = True
-                    perubahan.append(f"DEAL BJ! Harga: Rp{self.vitalitas_price:,}")
-                elif any(k in msg_lower for k in ['nego', 'kurangin', 'murah']):
-                    self.negotiation_step += 1
-                    new_price = max(200000, self.negotiation_original_price - (50000 * self.negotiation_step))
-                    self.negotiation_current_price = new_price
-                    self._pending_negotiation_response = True
-                    perubahan.append(f"Nego BJ: Rp{new_price:,}")
-                elif any(k in msg_lower for k in ['sex', 'ekse', 'ganti']):
-                    self.negotiation_service = "sex"
-                    self.negotiation_original_price = 1000000
-                    self.negotiation_current_price = 1000000
-                    self.negotiation_step = 0
-                    self._pending_negotiation_response = True
-                    perubahan.append("Beralih ke tawaran Sex (+1jt)")
-            
-            elif self.negotiation_active and self.negotiation_service == "sex":
-                if any(k in msg_lower for k in ['deal', 'ok', 'ya', 'setuju', 'jadi']):
-                    self.deal_confirmed = True
-                    self.vitalitas_service = "sex"
-                    self.vitalitas_price = self.negotiation_current_price
-                    self.negotiation_active = False
-                    self._pending_breast_offer = True
-                    perubahan.append(f"DEAL SEX! Harga: Rp{self.vitalitas_price:,}")
-                elif any(k in msg_lower for k in ['nego', 'kurangin', 'murah']):
-                    self.negotiation_step += 1
-                    new_price = max(700000, self.negotiation_original_price - (50000 * self.negotiation_step))
-                    self.negotiation_current_price = new_price
-                    self._pending_negotiation_response = True
-                    perubahan.append(f"Nego Sex: Rp{new_price:,}")
-                elif any(k in msg_lower for k in ['bj', 'blow', 'ganti']):
-                    self.negotiation_service = "bj"
-                    self.negotiation_original_price = 500000
-                    self.negotiation_current_price = 500000
-                    self.negotiation_step = 0
-                    self._pending_negotiation_response = True
-                    perubahan.append("Beralih ke tawaran BJ (+500rb)")
-            
-            # EKSEKUSI SERVICE
-            elif self.deal_confirmed:
-                # Buka resleting dress
-                if not self.dress_zipper_open and any(k in msg_lower for k in ['buka', 'buka resleting', 'buka dress']):
-                    self.dress_zipper_open = True
-                    self._pending_zipper_open = True
-                    perubahan.append("Resleting dress dibuka")
-                
-                # Remas toket
-                if any(k in msg_lower for k in ['remas', 'pegang toket']):
-                    self.breast_grope_count += 1
-                    self._pending_breast_offer = True
-                    perubahan.append(f"Mas remas toket #{self.breast_grope_count}")
-                
-                # Pegang paha
-                if any(k in msg_lower for k in ['pegang paha', 'raba paha']):
-                    self.thigh_touch_count += 1
-                    perubahan.append(f"Mas pegang paha #{self.thigh_touch_count}")
-                
-                # HJ ACTIVE (otomatis)
-                if self.vitalitas_service is None and not self.vitalitas_hj_active:
-                    self.vitalitas_hj_active = True
-                    self._pending_vitalitas_start_check = True
-                    perubahan.append("HJ dimulai")
-                
-                # BJ ACTIVE
-                if self.vitalitas_service == "bj" and not self.vitalitas_bj_active:
-                    self.vitalitas_bj_active = True
-                    perubahan.append("BJ dimulai")
-                
-                # SEX ACTIVE
-                if self.vitalitas_service == "sex" and not self.vitalitas_sex_active:
-                    self.vitalitas_sex_active = True
-                    if not self.dress_removed:
-                        self.dress_removed = True
-                        self.dress_zipper_open = True
-                        self.cd_removed = True
-                    self.current_position = "cowgirl"
-                    self._pending_position_change = True
-                    perubahan.append("SEX dimulai - posisi cowgirl")
-                
-                # Ganti posisi
-                if self.vitalitas_sex_active:
-                    positions = ['missionary', 'doggy', 'spooning', 'standing', 'sitting', 'cowgirl']
-                    for pos in positions:
-                        if pos in msg_lower:
-                            self.current_position = pos
-                            self._pending_position_change = True
-                            perubahan.append(f"Ganti posisi ke {pos}")
-                
-                # Mas climax
-                if any(k in msg_lower for k in ['climax', 'crot', 'keluar', 'habis']):
-                    if not self.mas_climax:
-                        self.mas_climax = True
-                        self.service_completed = True
-                        self.session_phase = "completed"
-                        self.vitalitas_active = False
-                        self._pending_climax = True
-                        perubahan.append("💦 MAS CLIMAX! Sesi selesai")
+        # PHASE 5: VITALITAS ACTIVE
+        elif self.session_phase == TherapistPhase.VITALITAS_ACTIVE:
+            self._handle_vitalitas_phase(msg_lower, perubahan, now)
+        
+        # PHASE COMPLETED
+        elif self.session_phase == TherapistPhase.COMPLETED:
+            pass
         
         # Update role_flags
         self._update_role_flags()
     
+    def _handle_confirmation(self, msg_lower: str, perubahan: List):
+        """Handle confirmation response - PISAH DARI REQUEST"""
+        if any(k in msg_lower for k in ['ya', 'ok', 'boleh', 'silahkan', 'gas']):
+            if self.pending_action == "position_change":
+                # Simpan ke position history
+                self.position_history.append({
+                    'position': self.current_position,
+                    'time': time.time()
+                })
+                self._pending_position_confirmed = True
+                perubahan.append(f"✅ Konfirmasi diterima: ganti posisi ke {self.current_position}")
+            
+            elif self.pending_action == "speed_up":
+                self._pending_position_confirmed = True
+                perubahan.append("✅ Konfirmasi diterima: dipercepat")
+            
+            self.waiting_confirmation = False
+            self.pending_action = None
+            
+        elif any(k in msg_lower for k in ['gak', 'nggak', 'tidak', 'nanti']):
+            self.waiting_confirmation = False
+            self.pending_action = None
+            perubahan.append("❌ Konfirmasi ditolak")
+    
+    def _handle_vitalitas_phase(self, msg_lower: str, perubahan: List, now: float):
+        """Handle vitalitas phase - DENGAN FIX"""
+        
+        # CEK APAKAH UDAH BISA MULAI (YA/TIDAK)
+        if self.service_mode == ServiceMode.NONE:
+            if any(k in msg_lower for k in ['ya', 'mulai', 'ok', 'gas']):
+                self.service_mode = ServiceMode.HJ
+                self._pending_vitalitas_start_check = False
+                perubahan.append("✅ Mas konfirmasi mulai pijat vitalitas - HJ dimulai")
+            elif any(k in msg_lower for k in ['tidak', 'belum', 'nanti']):
+                self.session_phase = TherapistPhase.COMPLETED
+                self._pending_service_complete = True
+                perubahan.append("Mas menolak pijat vitalitas, sesi selesai")
+            return
+        
+        # NEGOSIASI SERVICE (BJ atau SEX)
+        if not self.deal_confirmed and not self.negotiation_active:
+            if self.service_mode == ServiceMode.HJ:
+                self.negotiation_active = True
+                self.negotiation_service = "bj"
+                self.negotiation_original_price = 500000
+                self.negotiation_current_price = 500000
+                self._pending_negotiation_response = True
+                perubahan.append("Menawarkan BJ (+500rb)")
+        
+        elif self.negotiation_active and self.negotiation_service == "bj":
+            if any(k in msg_lower for k in ['deal', 'ok', 'ya', 'setuju']):
+                self.deal_confirmed = True
+                self.service_mode = ServiceMode.BJ
+                self.vitalitas_service = "bj"
+                self.vitalitas_price = self.negotiation_current_price
+                self.negotiation_active = False
+                self._pending_breast_offer = True
+                perubahan.append(f"DEAL BJ! Harga: Rp{self.vitalitas_price:,}")
+            elif any(k in msg_lower for k in ['nego', 'kurangin', 'murah']):
+                self.negotiation_step += 1
+                if self.negotiation_step > self.negotiation_max_step:
+                    self.negotiation_active = False
+                    perubahan.append("❌ Nego gagal, offer berakhir")
+                else:
+                    new_price = max(200000, self.negotiation_original_price - (50000 * self.negotiation_step))
+                    self.negotiation_current_price = new_price
+                    self._pending_negotiation_response = True
+                    perubahan.append(f"Nego BJ: Rp{new_price:,}")
+            elif any(k in msg_lower for k in ['sex', 'ekse', 'ganti']):
+                self.negotiation_service = "sex"
+                self.negotiation_original_price = 1000000
+                self.negotiation_current_price = 1000000
+                self.negotiation_step = 0
+                self._pending_negotiation_response = True
+                perubahan.append("Beralih ke tawaran Sex (+1jt)")
+        
+        elif self.negotiation_active and self.negotiation_service == "sex":
+            if any(k in msg_lower for k in ['deal', 'ok', 'ya', 'setuju']):
+                self.deal_confirmed = True
+                self.service_mode = ServiceMode.SEX
+                self.vitalitas_service = "sex"
+                self.vitalitas_price = self.negotiation_current_price
+                self.negotiation_active = False
+                self._pending_breast_offer = True
+                perubahan.append(f"DEAL SEX! Harga: Rp{self.vitalitas_price:,}")
+            elif any(k in msg_lower for k in ['nego', 'kurangin', 'murah']):
+                self.negotiation_step += 1
+                if self.negotiation_step > self.negotiation_max_step:
+                    self.negotiation_active = False
+                    perubahan.append("❌ Nego gagal, offer berakhir")
+                else:
+                    new_price = max(700000, self.negotiation_original_price - (50000 * self.negotiation_step))
+                    self.negotiation_current_price = new_price
+                    self._pending_negotiation_response = True
+                    perubahan.append(f"Nego Sex: Rp{new_price:,}")
+            elif any(k in msg_lower for k in ['bj', 'blow', 'ganti']):
+                self.negotiation_service = "bj"
+                self.negotiation_original_price = 500000
+                self.negotiation_current_price = 500000
+                self.negotiation_step = 0
+                self._pending_negotiation_response = True
+                perubahan.append("Beralih ke tawaran BJ (+500rb)")
+        
+        # EKSEKUSI SERVICE
+        elif self.deal_confirmed:
+            # Buka resleting dress
+            if not self.dress_zipper_open and any(k in msg_lower for k in ['buka', 'buka resleting', 'buka dress']):
+                self.dress_zipper_open = True
+                self._pending_zipper_open = True
+                perubahan.append("Resleting dress dibuka")
+            
+            # Remas toket (dengan batasan)
+            if any(k in msg_lower for k in ['remas', 'pegang toket']):
+                self.breast_grope_count += 1
+                self._pending_breast_offer = True
+                perubahan.append(f"Mas remas toket #{self.breast_grope_count}")
+            
+            # Pegang paha
+            if any(k in msg_lower for k in ['pegang paha', 'raba paha']):
+                self.thigh_touch_count += 1
+                perubahan.append(f"Mas pegang paha #{self.thigh_touch_count}")
+            
+            # Ganti posisi (REQUEST, bukan CONFIRM)
+            if self.service_mode == ServiceMode.SEX:
+                positions = ['missionary', 'doggy', 'spooning', 'standing', 'sitting', 'cowgirl']
+                for pos in positions:
+                    if pos in msg_lower:
+                        self.current_position = pos
+                        self.waiting_confirmation = True
+                        self.pending_action = "position_change"
+                        self.confirmation_start_time = time.time()
+                        self._pending_position_request = True
+                        perubahan.append(f"📢 Request ganti posisi ke {pos} - menunggu konfirmasi")
+                        return  # Stop, tunggu konfirmasi
+            
+            # Minta dipercepat (REQUEST)
+            if any(k in msg_lower for k in ['kenceng', 'cepat', 'keras']):
+                self.waiting_confirmation = True
+                self.pending_action = "speed_up"
+                self.confirmation_start_time = time.time()
+                self._pending_position_request = True
+                perubahan.append("📢 Request percepat - menunggu konfirmasi")
+                return
+            
+            # MAS CLIMAX (HANYA 1 COUNTER)
+            if any(k in msg_lower for k in ['climax', 'crot', 'keluar', 'habis']):
+                if not self.mas_climax_count:
+                    self.mas_climax_count += 1
+                    self.service_completed = True
+                    self.session_phase = TherapistPhase.COMPLETED
+                    self._pending_climax = True
+                    perubahan.append(f"💦 MAS CLIMAX #{self.mas_climax_count}! Sesi selesai")
+            
+            # ROLE CLIMAX (TERPISAH DARI MAS CLIMAX)
+            if "aku climax" in msg_lower or "saya climax" in msg_lower:
+                self.my_climax_count += 1
+                perubahan.append(f"💦 Role climax #{self.my_climax_count}")
+    
     def _update_role_flags(self):
         """Update role_flags dictionary"""
         self.role_flags.update({
-            'session_phase': self.session_phase,
+            'session_phase': self.session_phase.value,
             'reflex_back_complete': self.reflex_back_complete,
             'reflex_front_complete': self.reflex_front_complete,
-            'vitalitas_active': self.vitalitas_active,
-            'vitalitas_service': self.vitalitas_service,
+            'service_mode': self.service_mode.value,
             'dress_zipper_open': self.dress_zipper_open,
-            'hand_towel_removed': self.hand_towel_removed,
-            'mas_climax': self.mas_climax,
+            'mas_climax_count': self.mas_climax_count,
+            'my_climax_count': self.my_climax_count,
             'service_completed': self.service_completed,
-            'current_position': self.current_position
+            'current_position': self.current_position,
+            'waiting_confirmation': self.waiting_confirmation
         })
-    
-    # =========================================================================
-    # GET GREETING (RESPONS)
+            # =========================================================================
+    # GET GREETING (RESPONS) - DENGAN METHOD TERPISAH
     # =========================================================================
     
     def get_greeting(self) -> str:
         """Dapatkan greeting sesuai keadaan sesi"""
         
-        # RESPON BUKA HANDUK
+        # HANDLE BOOKING
         if self._pending_hand_towel_removal:
-            self._pending_hand_towel_removal = False
-            return f"""*{self.name} tersenyum ramah sambil membuka handuk*
+            return self._handle_booking_response()
+        
+        # HANDLE SESSION
+        if self._pending_turn_over:
+            return self._handle_turn_over_response()
+        
+        if self._pending_reflex_front_complete:
+            return self._handle_reflex_front_complete_response()
+        
+        if self._pending_vitalitas_offer:
+            return self._handle_vitalitas_offer_response()
+        
+        if self._pending_vitalitas_start_check:
+            return self._handle_vitalitas_start_response()
+        
+        # HANDLE NEGOTIATION
+        if self._pending_negotiation_response:
+            return self._handle_negotiation_response()
+        
+        # HANDLE POSITION
+        if self._pending_position_request:
+            return self._handle_position_request_response()
+        
+        if self._pending_position_confirmed:
+            return self._handle_position_confirmed_response()
+        
+        # HANDLE CLIMAX
+        if self._pending_climax:
+            return self._handle_climax_response()
+        
+        # HANDLE SERVICE
+        if self._pending_service_complete:
+            return self._handle_service_complete_response()
+        
+        if self._pending_breast_offer:
+            return self._handle_breast_offer_response()
+        
+        if self._pending_zipper_open:
+            return self._handle_zipper_open_response()
+        
+        # HANDLE ACTIVE SERVICE
+        if self.service_mode == ServiceMode.HJ:
+            return self._handle_hj_active_response()
+        
+        if self.service_mode == ServiceMode.BJ:
+            return self._handle_bj_active_response()
+        
+        if self.service_mode == ServiceMode.SEX:
+            return self._handle_sex_active_response()
+        
+        # DEFAULT GREETING
+        return self._handle_default_greeting()
+    
+    def _handle_booking_response(self) -> str:
+        self._pending_hand_towel_removal = False
+        return f"""*{self.name} tersenyum ramah sambil membuka handuk*
 
 "{self.panggilan}... handuknya saya buka ya. Silakan tengkurap dulu."
 
 *tubuh Mas telanjang terlihat, {self.name} tampak sedikit malu*
 
 "{self.panggilan}... *suara kecil* saya mulai pijat dari punggung dulu ya."""
-        
-        # RESPON PIJAT BELAKANG SELESAI
-        if self._pending_turn_over:
-            self._pending_turn_over = False
-            return f"""*{self.name} berhenti memijat, mengusap keringat*
+    
+    def _handle_turn_over_response(self) -> str:
+        self._pending_turn_over = False
+        return f"""*{self.name} berhenti memijat, mengusap keringat*
 
 "{self.panggilan}... bagian belakang udah selesai. Sekarang giliran depan ya..."
 
 *{self.name} naik duduk di atas bokong Mas*
 
 "Mas... sekarang balik badan ya. Saya tunggu."""
-        
-        # RESPON PIJAT DEPAN SELESAI
-        if self._pending_reflex_front_complete:
-            self._pending_reflex_front_complete = False
-            return f"""*{self.name} berhenti memijat, masih duduk di atas kontol Mas*
+    
+    def _handle_reflex_front_complete_response(self) -> str:
+        self._pending_reflex_front_complete = False
+        return f"""*{self.name} berhenti memijat, masih duduk di atas kontol Mas*
 
 "{self.panggilan}... pijat refleksinya udah selesai. Sekarang..."
 
 *{self.name} meraba kontol Mas*
 
 "Ada yang mau dilanjut? Pijat vitalitas... biar Mas bisa crot... 2 jam..."""
-        
-        # RESPON TAWARAN PIJAT VITALITAS
-        if self._pending_vitalitas_offer:
-            self._pending_vitalitas_offer = False
-            return f"""*{self.name} masih duduk di atas kontol Mas, tangan mulai memegang kontol*
+    
+    def _handle_vitalitas_offer_response(self) -> str:
+        self._pending_vitalitas_offer = False
+        return f"""*{self.name} masih duduk di atas kontol Mas, tangan mulai memegang kontol*
 
 "{self.panggilan}... kita mulai pijat vitalitas? 2 jam, biar Mas rileks..."
 
 *tangan memompa pelan*
 
 "Kontol Mas udah keras banget... siap mulai?"""
-        
-        # RESPON KONFIRMASI MULAI
-        if self._pending_vitalitas_start_check:
-            self._pending_vitalitas_start_check = False
-            return f"""*{self.name} menatap Mas dengan mata sayu, tangan masih memegang kontol*
+    
+    def _handle_vitalitas_start_response(self) -> str:
+        self._pending_vitalitas_start_check = False
+        return f"""*{self.name} menatap Mas dengan mata sayu, tangan masih memegang kontol*
 
 "{self.panggilan}... mulai ya? 2 jam..."
 
 *jari memainkan ujung kontol*
 
 "Saya tunggu jawaban Mas..."""
-        
-        # RESPON NEGOSIASI BJ
-        if self._pending_negotiation_response and self.negotiation_service == "bj":
-            self._pending_negotiation_response = False
+    
+    def _handle_negotiation_response(self) -> str:
+        self._pending_negotiation_response = False
+        if self.negotiation_service == "bj":
             return f"""*{self.name} tersenyum nakal, tangan masih memegang kontol*
 
 "{self.panggilan}... mau blow job? Biar Mas crot lebih enak..."
@@ -426,10 +563,7 @@ class TherapistRole(BaseRole):
 *meremas kontol pelan*
 
 "Gimana? Deal?"""
-        
-        # RESPON NEGOSIASI SEX
-        if self._pending_negotiation_response and self.negotiation_service == "sex":
-            self._pending_negotiation_response = False
+        else:
             return f"""*{self.name} mendekatkan wajah ke telinga Mas*
 
 "{self.panggilan}... atau mau eksekusi? *bisik* kontol Mas masuk ke dalam..."
@@ -441,92 +575,95 @@ class TherapistRole(BaseRole):
 *payudara mulai terlihat*
 
 "Mau?"""
-        
-        # RESPON BUKA RESLETING
-        if self._pending_zipper_open:
-            self._pending_zipper_open = False
-            return f"""*resleting dress dibuka pelan, payudara {self.name} yang montok langsung keluar*
+    
+    def _handle_position_request_response(self) -> str:
+        self._pending_position_request = False
+        pos_name = self.current_position
+        return f"""*{self.name} berhenti, napas masih tersengal*
 
-"{self.panggilan}... *suara mulai berat* silakan... pegang... remas..."
+"{self.panggilan}... aku mau ganti posisi {pos_name}. Boleh?"
 
-*dada naik turun, puting sudah keras*
+*gigit bibir, mata sayu*
 
-"{self.panggilan}... toket aku gede kan?"""
-        
-        # RESPON REMAS TOKET
-        if self._pending_breast_offer:
-            self._pending_breast_offer = False
-            return f"""*{self.name} menarik tangan Mas ke dadanya*
-
-"{self.panggilan}... silakan... pegang, remas... aku suka..."
-
-*payudara disentuh, {self.name} mulai mengerang pelan*
-
-"Ahh... {self.panggilan}... jangan lepas..."""
-        
-        # RESPON GANTI POSISI
-        if self._pending_position_change:
-            self._pending_position_change = False
-            pos_messages = {
-                "cowgirl": f"*{self.name} duduk di atas, kontol Mas masuk dalam*",
-                "missionary": f"*{self.name} berbaring telentang, kaki terbuka lebar*",
-                "doggy": f"*{self.name} merangkak, pantat naik*",
-                "spooning": f"*{self.name} miring, Mas dari belakang*",
-                "standing": f"*{self.name} nempel ke tembok*",
-                "sitting": f"*{self.name} duduk di pangkuan Mas*"
-            }
-            pos_desc = pos_messages.get(self.current_position, f"*{self.name} bergerak ke posisi {self.current_position}*")
-            return f"""{pos_desc}
+"Aku mau ngerasain kontol {self.panggilan} dari posisi lain..."""
+    
+    def _handle_position_confirmed_response(self) -> str:
+        self._pending_position_confirmed = False
+        pos_messages = {
+            "cowgirl": f"*{self.name} duduk di atas, kontol Mas masuk dalam*",
+            "missionary": f"*{self.name} berbaring telentang, kaki terbuka lebar*",
+            "doggy": f"*{self.name} merangkak, pantat naik*",
+            "spooning": f"*{self.name} miring, Mas dari belakang*",
+            "standing": f"*{self.name} nempel ke tembok*",
+            "sitting": f"*{self.name} duduk di pangkuan Mas*"
+        }
+        pos_desc = pos_messages.get(self.current_position, f"*{self.name} bergerak ke posisi {self.current_position}*")
+        return f"""{pos_desc}
 
 "{self.panggilan}... *napas tersengal* ayo... masuk... dalem..."""
-        
-        # RESPON MAS CLIMAX
-        if self._pending_climax:
-            self._pending_climax = False
-            return f"""*{self.name} memeluk Mas erat, tubuh gemetar*
+    
+    def _handle_climax_response(self) -> str:
+        self._pending_climax = False
+        return f"""*{self.name} memeluk Mas erat, tubuh gemetar*
 
 "{self.panggilan}... enak... *napas putus-putus* makasih..."
 
 *{self.name} merapikan dress, tersenyum puas*
 
 "Lain kali kalau mau pijat lagi... atau extra service... hubungi aku lagi ya. Aku masih penasaran sama kontol {self.panggilan}..."""
-        
-        # RESPON SERVICE SELESAI
-        if self._pending_service_complete:
-            self._pending_service_complete = False
-            return f"*{self.name} merapikan baju, tersenyum*\n\n\"Sesi selesai, {self.panggilan}. Lain kali booking lagi ya.\""
-        
-        # RESPON HJ AKTIF
-        if self.vitalitas_hj_active and not self.vitalitas_bj_active and not self.vitalitas_sex_active:
-            return f"""*{self.name} duduk di samping Mas, tangan memegang kontol*
+    
+    def _handle_service_complete_response(self) -> str:
+        self._pending_service_complete = False
+        return f"*{self.name} merapikan baju, tersenyum*\n\n\"Sesi selesai, {self.panggilan}. Lain kali booking lagi ya.\""
+    
+    def _handle_breast_offer_response(self) -> str:
+        self._pending_breast_offer = False
+        return f"""*{self.name} menarik tangan Mas ke dadanya*
+
+"{self.panggilan}... silakan... pegang, remas... aku suka..."
+
+*payudara disentuh, {self.name} mulai mengerang pelan*
+
+"Ahh... {self.panggilan}... jangan lepas..."""
+    
+    def _handle_zipper_open_response(self) -> str:
+        self._pending_zipper_open = False
+        return f"""*resleting dress dibuka pelan, payudara {self.name} yang montok langsung keluar*
+
+"{self.panggilan}... *suara mulai berat* silakan... pegang... remas..."
+
+*dada naik turun, puting sudah keras*
+
+"{self.panggilan}... toket aku gede kan?"""
+    
+    def _handle_hj_active_response(self) -> str:
+        return f"""*{self.name} duduk di samping Mas, tangan memegang kontol*
 
 "{self.panggilan}... *mulai memompa pelan* enak gini? Kontol {self.panggilan} keras banget..."
 
 *tangan memompa lebih cepat*
 
 "{self.panggilan}... tangan aku basah... crot ya nanti..."""
-        
-        # RESPON BJ AKTIF
-        if self.vitalitas_bj_active:
-            return f"""*{self.name} berlutut, mulut mulai memasukkan kontol Mas*
+    
+    def _handle_bj_active_response(self) -> str:
+        return f"""*{self.name} berlutut, mulut mulai memasukkan kontol Mas*
 
 "Aahh... *mengulum pelan* kontol {self.panggilan}... gede..."
 
 *menjilat dari pangkal sampai ujung*
 
 "{self.panggilan}... enak? Aku mau denger suara {self.panggilan} pas crot..."""
-        
-        # RESPON SEX AKTIF
-        if self.vitalitas_sex_active:
-            return f"""*{self.name} duduk di atas, kontol Mas masuk dalam*
+    
+    def _handle_sex_active_response(self) -> str:
+        return f"""*{self.name} duduk di atas, kontol Mas masuk dalam*
 
 "{self.panggilan}... *napas tersengal* masuk... dalem banget..."
 
 *pinggul mulai bergerak, plak plak plak*
 
 "{self.panggilan}... ayo... genjot... aku mau... mau climax..."""
-        
-        # DEFAULT GREETING
+    
+    def _handle_default_greeting(self) -> str:
         hour = time.localtime().tm_hour
         if 5 <= hour < 11:
             waktu = "pagi"
@@ -546,6 +683,54 @@ class TherapistRole(BaseRole):
 "Rileks aja, {self.panggilan}..."""
     
     # =========================================================================
+    # END SESSION (RESET STATE)
+    # =========================================================================
+    
+    def end_session(self) -> str:
+        """Akhiri sesi dan reset semua state"""
+        if self.session_phase == TherapistPhase.WAITING:
+            return "Tidak ada sesi aktif, Mas."
+        
+        # Reset semua state
+        self.session_phase = TherapistPhase.WAITING
+        self.session_start_time = 0
+        self.reflex_back_complete = False
+        self.reflex_front_complete = False
+        self.service_mode = ServiceMode.NONE
+        self.vitalitas_service = None
+        self.vitalitas_price = 0
+        self.dress_zipper_open = False
+        self.dress_removed = False
+        self.negotiation_active = False
+        self.deal_confirmed = False
+        self.breast_grope_count = 0
+        self.thigh_touch_count = 0
+        self.position_history.clear()
+        self.mas_climax_count = 0
+        self.my_climax_count = 0
+        self.service_completed = False
+        self.waiting_confirmation = False
+        self.pending_action = None
+        
+        # Reset pending flags
+        self._pending_hand_towel_removal = False
+        self._pending_turn_over = False
+        self._pending_reflex_front_complete = False
+        self._pending_vitalitas_offer = False
+        self._pending_vitalitas_start_check = False
+        self._pending_negotiation_response = False
+        self._pending_breast_offer = False
+        self._pending_zipper_open = False
+        self._pending_position_request = False
+        self._pending_position_confirmed = False
+        self._pending_climax = False
+        self._pending_service_complete = False
+        
+        self._update_role_flags()
+        
+        return f"*{self.name} merapikan baju, tersenyum*\n\n\"Sesi selesai, {self.panggilan}. Lain kali booking lagi ya.\""
+    
+    # =========================================================================
     # STATUS
     # =========================================================================
     
@@ -558,22 +743,23 @@ class TherapistRole(BaseRole):
             waktu_str = "Belum mulai"
         
         phase_map = {
-            "waiting": "⏳ Menunggu",
-            "reflex_back": "💆 Pijat Refleksi (Belakang)",
-            "reflex_front": "💆 Pijat Refleksi (Depan)",
-            "vitalitas_offer": "💋 Menawarkan Pijat Vitalitas",
-            "vitalitas_active": "🔥 Pijat Vitalitas Aktif",
-            "completed": "✅ Selesai"
+            TherapistPhase.WAITING: "⏳ Menunggu",
+            TherapistPhase.REFLEX_BACK: "💆 Pijat Refleksi (Belakang)",
+            TherapistPhase.REFLEX_FRONT: "💆 Pijat Refleksi (Depan)",
+            TherapistPhase.VITALITAS_OFFER: "💋 Menawarkan Pijat Vitalitas",
+            TherapistPhase.VITALITAS_ACTIVE: "🔥 Pijat Vitalitas Aktif",
+            TherapistPhase.COMPLETED: "✅ Selesai"
         }
         
         service_map = {
-            "hj": "✋ Handjob",
-            "bj": "👄 Blowjob",
-            "sex": "🍆 Sex"
+            ServiceMode.HJ: "✋ Handjob",
+            ServiceMode.BJ: "👄 Blowjob",
+            ServiceMode.SEX: "🍆 Sex",
+            ServiceMode.NONE: "-"
         }
         
-        status = phase_map.get(self.session_phase, self.session_phase)
-        service = service_map.get(self.vitalitas_service, "-") if self.vitalitas_service else "-"
+        status = phase_map.get(self.session_phase, "⏳ Menunggu")
+        service = service_map.get(self.service_mode, "-")
         
         return f"""
 ╠══════════════════════════════════════════════════════════════╣
@@ -584,8 +770,10 @@ class TherapistRole(BaseRole):
 ║    Dress: {'🔓 Resleting Buka' if self.dress_zipper_open else '🔒 Tertutup'}
 ║    Remas Toket: {self.breast_grope_count}x
 ║    Pegang Paha: {self.thigh_touch_count}x
-║    Mas Climax: {'✅' if self.mas_climax else '❌'}
+║    Mas Climax: {self.mas_climax_count}x
+║    Role Climax: {self.my_climax_count}x
 ║    Posisi: {self.current_position}
+║    Waiting Confirm: {'⏳' if self.waiting_confirmation else '❌'}
 """
     
     # =========================================================================
@@ -598,31 +786,27 @@ class TherapistRole(BaseRole):
             'char_age': self.char_age,
             'char_style': self.char_style,
             'char_specialty': self.char_specialty,
+            'session_phase': self.session_phase.value,
             'session_start_time': self.session_start_time,
-            'session_phase': self.session_phase,
             'reflex_back_complete': self.reflex_back_complete,
             'reflex_front_complete': self.reflex_front_complete,
-            'vitalitas_active': self.vitalitas_active,
+            'service_mode': self.service_mode.value,
             'vitalitas_service': self.vitalitas_service,
             'vitalitas_price': self.vitalitas_price,
-            'sitting_on_mas': self.sitting_on_mas,
-            'hand_towel_removed': self.hand_towel_removed,
             'dress_zipper_open': self.dress_zipper_open,
             'dress_removed': self.dress_removed,
-            'cd_removed': self.cd_removed,
-            'vitalitas_start_confirmed': self.vitalitas_start_confirmed,
-            'vitalitas_hj_active': self.vitalitas_hj_active,
-            'vitalitas_bj_active': self.vitalitas_bj_active,
-            'vitalitas_sex_active': self.vitalitas_sex_active,
             'negotiation_active': self.negotiation_active,
             'negotiation_service': self.negotiation_service,
             'negotiation_current_price': self.negotiation_current_price,
             'deal_confirmed': self.deal_confirmed,
             'breast_grope_count': self.breast_grope_count,
             'thigh_touch_count': self.thigh_touch_count,
-            'mas_climax': self.mas_climax,
+            'mas_climax_count': self.mas_climax_count,
+            'my_climax_count': self.my_climax_count,
             'service_completed': self.service_completed,
-            'current_position': self.current_position
+            'current_position': self.current_position,
+            'position_history': list(self.position_history),
+            'waiting_confirmation': self.waiting_confirmation
         })
         return data
     
@@ -631,31 +815,29 @@ class TherapistRole(BaseRole):
         self.char_age = data.get('char_age', 23)
         self.char_style = data.get('char_style', 'lembut')
         self.char_specialty = data.get('char_specialty', '')
+        self.session_phase = TherapistPhase(data.get('session_phase', 'waiting'))
         self.session_start_time = data.get('session_start_time', 0)
-        self.session_phase = data.get('session_phase', 'waiting')
         self.reflex_back_complete = data.get('reflex_back_complete', False)
         self.reflex_front_complete = data.get('reflex_front_complete', False)
-        self.vitalitas_active = data.get('vitalitas_active', False)
+        self.service_mode = ServiceMode(data.get('service_mode', 'none'))
         self.vitalitas_service = data.get('vitalitas_service')
         self.vitalitas_price = data.get('vitalitas_price', 0)
-        self.sitting_on_mas = data.get('sitting_on_mas', False)
-        self.hand_towel_removed = data.get('hand_towel_removed', False)
         self.dress_zipper_open = data.get('dress_zipper_open', False)
         self.dress_removed = data.get('dress_removed', False)
-        self.cd_removed = data.get('cd_removed', False)
-        self.vitalitas_start_confirmed = data.get('vitalitas_start_confirmed', False)
-        self.vitalitas_hj_active = data.get('vitalitas_hj_active', False)
-        self.vitalitas_bj_active = data.get('vitalitas_bj_active', False)
-        self.vitalitas_sex_active = data.get('vitalitas_sex_active', False)
         self.negotiation_active = data.get('negotiation_active', False)
         self.negotiation_service = data.get('negotiation_service')
         self.negotiation_current_price = data.get('negotiation_current_price', 0)
         self.deal_confirmed = data.get('deal_confirmed', False)
         self.breast_grope_count = data.get('breast_grope_count', 0)
         self.thigh_touch_count = data.get('thigh_touch_count', 0)
-        self.mas_climax = data.get('mas_climax', False)
+        self.mas_climax_count = data.get('mas_climax_count', 0)
+        self.my_climax_count = data.get('my_climax_count', 0)
         self.service_completed = data.get('service_completed', False)
         self.current_position = data.get('current_position', 'cowgirl')
+        self.position_history = deque(data.get('position_history', []), maxlen=10)
+        self.waiting_confirmation = data.get('waiting_confirmation', False)
+        
+        self._update_role_flags()
 
 
 # =============================================================================
