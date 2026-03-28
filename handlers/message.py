@@ -64,17 +64,23 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if mode == 'role' and ANORA_AVAILABLE:
         if active_role:
             try:
-                respons = await role_manager.chat(active_role, pesan)
-                await update.message.reply_text(respons, parse_mode='Markdown')
+                from roles.manager import get_role_manager
+                role_manager = get_role_manager()
+            
+                # Ambil role instance (dengan fallback)
+                role = role_manager.get_role(user_id)
+            
+                if role:
+                    respons = await role_manager.chat(user_id, pesan)
+                    await update.message.reply_text(respons, parse_mode='Markdown')
+                else:
+                    await update.message.reply_text(
+                        "💜 Role belum aktif. Silakan pilih role dulu dengan **/role [nama]**",
+                        parse_mode='Markdown'
+                    )
             except Exception as e:
                 logger.error(f"Role chat error: {e}", exc_info=True)
                 await update.message.reply_text("Maaf, ada error. Coba lagi ya.", parse_mode='Markdown')
-            return
-        else:
-            await update.message.reply_text(
-                "💜 Role belum aktif. Silakan pilih role dulu dengan **/role [nama]**",
-                parse_mode='Markdown'
-            )
             return
     
     # Chat mode default
