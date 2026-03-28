@@ -105,29 +105,45 @@ class RoleManager:
     
     def get_role(self, user_id: int) -> Optional[BaseRole]:
         """Dapatkan role instance untuk user tertentu"""
-        # Cek memory dulu
+        # 1. Cek di memory dulu
         role = self._user_roles.get(user_id)
         if role:
+            print(f"[DEBUG] Role found in memory for user {user_id}")
             return role
     
-        # ========== FALLBACK: LOAD DARI DATABASE ==========
+        # 2. Tidak ada di memory, coba load dari database
+        print(f"[DEBUG] Role not in memory for user {user_id}, trying to load from database...")
+    
         try:
             import asyncio
             from utils.user_mode import get_active_role
         
-            # Ambil active_role dari database (async)
+            # Ambil active_role dari database
             loop = asyncio.get_event_loop()
             active_role = loop.run_until_complete(get_active_role(user_id))
         
+            print(f"[DEBUG] Active role from database: {active_role}")
+        
             if active_role:
                 from roles.manager import ROLE_MAP, normalize_role_id
+            
                 normalized_key = normalize_role_id(active_role)
                 role_class = ROLE_MAP.get(normalized_key)
+            
+                print(f"[DEBUG] Normalized key: {normalized_key}, role_class: {role_class}")
+            
                 if role_class:
-                    print(f"[ROLE REACTIVATE] user={user_id}, role={active_role}")
+                    print(f"[ROLE REACTIVATE] Re-activating role {active_role} for user {user_id}")
                     return self.set_role(user_id, role_class, normalized_key)
+                else:
+                    print(f"[DEBUG] No role class found for {normalized_key}")
+            else:
+                print(f"[DEBUG] No active_role in database for user {user_id}")
+            
         except Exception as e:
             print(f"[ROLE REACTIVATE ERROR] {e}")
+            import traceback
+            traceback.print_exc()
     
         return None
     
