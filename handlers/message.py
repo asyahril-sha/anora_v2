@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 # Global flag (from main.py)
 ANORA_AVAILABLE = True
 
+def set_anora_available(status: bool):
+    global ANORA_AVAILABLE
+    ANORA_AVAILABLE = status
+    logger.info(f"[ANORA] Availability set to: {status}")
+
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler untuk pesan biasa"""
