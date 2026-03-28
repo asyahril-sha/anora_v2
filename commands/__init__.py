@@ -1,4 +1,8 @@
 # anora_v2/commands/__init__.py
+"""
+ANORA-V2 Commands Package
+"""
+
 from commands.general import register_general_commands
 from commands.role import register_role_commands
 from commands.therapist import register_therapist_commands
