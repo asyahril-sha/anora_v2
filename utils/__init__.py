@@ -3,7 +3,7 @@
 ANORA-V2 Utils Package
 """
 
-from .user_mode import get_user_mode, set_user_mode, get_active_role
+from utils.user_mode import get_user_mode, set_user_mode, get_active_role
 
 __all__ = [
     'get_user_mode',
