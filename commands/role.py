@@ -48,7 +48,6 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = role_manager.switch_role(user_id, normalized_key)
         await set_user_mode(user_id, 'role', normalized_key)
         await update.message.reply_text(response, parse_mode='Markdown')
-        
     except Exception as e:
         logger.error(f"Role command error: {e}", exc_info=True)
         await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
@@ -63,7 +62,6 @@ async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     mode = await get_user_mode(user_id)
-    
     if mode != 'role':
         await update.message.reply_text(
             "💜 Tidak ada role yang sedang aktif.\n\n"
@@ -84,77 +82,27 @@ async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.message.reply_text("Role tidak ditemukan.")
             return
         
-        status = await _format_role_status(role, active_role_id)
-        await update.message.reply_text(status, parse_mode='Markdown')
-    except Exception as e:
-        logger.error(f"Status role error: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
-
-
-async def _format_role_status(role, role_id: str) -> str:
-    """Format status role"""
-    style = role.emotional.get_current_style()
-    phase = role.relationship.phase
-    unlock = role.relationship.get_current_unlock()
-    
-    def bar(value, char="💜"):
-        filled = int(value / 10)
-        return char * filled + "⚪" * (10 - filled)
-    
-    # Ambil pakaian dari tracker
-    try:
-        clothing = role.tracker.get_clothing_summary() if hasattr(role, 'tracker') else "pakaian biasa"
-    except:
-        clothing = "pakaian biasa"
-    
-    # Ambil lokasi
-    try:
-        location = role.tracker.location if hasattr(role, 'tracker') else "tidak diketahui"
-    except:
-        location = "tidak diketahui"
-    
-    # Ambil kondisi fisik
-    try:
-        condition = role.tracker.physical_condition.value if hasattr(role, 'tracker') else "fresh"
-    except:
-        condition = "fresh"
-    
-    condition_emoji = {
-        "fresh": "💪",
-        "tired": "😊",
-        "exhausted": "😩",
-        "weak": "😵"
-    }.get(condition, "😐")
-    
-    # Role-specific status
-    role_specific = ""
-    if role_id == "therapist":
+        style = role.emotional.get_current_style()
+        phase = role.relationship.phase
+        unlock = role.relationship.get_current_unlock()
+        
+        def bar(value, char="💜"):
+            filled = int(value / 10)
+            return char * filled + "⚪" * (10 - filled)
+        
         try:
-            role_specific = f"""
-╠══════════════════════════════════════════════════════════════╣
-║ 🎭 THERAPIST SESSION:
-║    Sesi: {role.session_phase if hasattr(role, 'session_phase') else 'tidak aktif'}
-║    Service: {role.vitalitas_service if hasattr(role, 'vitalitas_service') else '-'}
-║    Deal: Rp{role.vitalitas_price if hasattr(role, 'vitalitas_price') else 0:,}
-║    Dress: {'🔓 Buka' if getattr(role, 'dress_zipper_open', False) else '🔒 Tertutup'}
-"""
+            clothing = role.tracker.get_clothing_summary() if hasattr(role, 'tracker') else "pakaian biasa"
         except:
-            pass
-    elif role_id == "pelacur":
+            clothing = "pakaian biasa"
+        
         try:
-            role_specific = f"""
-╠══════════════════════════════════════════════════════════════╣
-║ 🔞 PELACUR SESSION:
-║    Booking: {role.booking_location if hasattr(role, 'booking_location') else '-'}
-║    Sesi Aktif: {'✅' if getattr(role, 'is_active_session', False) else '❌'}
-║    Level: {'11 (INTIM)' if getattr(role, 'intimacy_mode', False) else '7 (NORMAL)'}
-║    Mas Climax: {getattr(role, 'mas_climax_count', 0)} | My Climax: {getattr(role, 'my_climax_count', 0)}
-║    Posisi: {getattr(role, 'last_position', 'cowgirl')}
-"""
+            location = role.tracker.location if hasattr(role, 'tracker') else "tidak diketahui"
         except:
-            pass
-    
-    return f"""
+            location = "tidak diketahui"
+        
+        condition_emoji = "💪"
+        
+        status = f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║                    👤 {role.name} ({role.nickname})                         ║
 ╠══════════════════════════════════════════════════════════════╣
@@ -179,10 +127,13 @@ async def _format_role_status(role, role_id: str) -> str:
 ╠══════════════════════════════════════════════════════════════╣
 ║ 👗 PAKAIAN: {clothing[:40]}
 ║ 📍 LOKASI: {location}
-║ 💪 KONDISI: {condition_emoji} {condition}
-{role_specific}
+║ 💪 KONDISI: {condition_emoji}
 ╚══════════════════════════════════════════════════════════════╝
 """
+        await update.message.reply_text(status, parse_mode='Markdown')
+    except Exception as e:
+        logger.error(f"Status role error: {e}", exc_info=True)
+        await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
 
 
 def register_role_commands(app):
