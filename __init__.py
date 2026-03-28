@@ -6,4 +6,4 @@ Version: 2.0.0
 __version__ = "2.0.0"
 __author__ = "Nova"
 
-from .config import get_settings
+from config import get_settings
