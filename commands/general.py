@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from telegram import Update
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, CommandHandler
 
 from config import get_settings
 from core.emotional_engine import get_emotional_engine
@@ -24,6 +24,14 @@ logger = logging.getLogger(__name__)
 
 _backup_dir = Path("data/backups")
 _backup_dir.mkdir(parents=True, exist_ok=True)
+
+# Global flag (akan di-set dari main.py)
+ANORA_AVAILABLE = True
+
+
+def set_anora_available(flag: bool):
+    global ANORA_AVAILABLE
+    ANORA_AVAILABLE = flag
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
