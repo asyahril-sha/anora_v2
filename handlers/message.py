@@ -12,7 +12,7 @@ from roleplay.integration import get_anora_roleplay
 from roles import role_manager
 from core.brain import get_anora_brain
 
-from ..utils.user_mode import get_user_mode, get_active_role
+from utils.user_mode import get_user_mode, get_active_role
 
 logger = logging.getLogger(__name__)
 
