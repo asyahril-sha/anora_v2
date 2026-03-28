@@ -25,13 +25,14 @@ from telegram.ext import (
 from telegram.request import HTTPXRequest
 
 from config import get_settings
-from commands import (
+from .commands import (
     register_general_commands,
     register_role_commands,
     register_therapist_commands,
     register_pelacur_commands
 )
-from handlers.message import message_handler, ANORA_AVAILABLE
+from .handlers.message import message_handler, set_anora_available
+from . import __version__
 
 # =============================================================================
 # SETUP LOGGING
@@ -50,6 +51,10 @@ logger = logging.getLogger("ANORA-V2")
 _application = None
 _backup_dir = Path("data/backups")
 _backup_dir.mkdir(parents=True, exist_ok=True)
+
+# Flag untuk ANORA availability (akan di-set setelah init)
+ANORA_AVAILABLE = True
+set_anora_available(ANORA_AVAILABLE)
 
 
 # =============================================================================
@@ -94,7 +99,7 @@ async def health_handler(request):
     return web.json_response({
         "status": "healthy",
         "bot": "ANORA-V2",
-        "version": "2.0.0",
+        "version": __version__,
         "anora_available": ANORA_AVAILABLE,
         "timestamp": datetime.now().isoformat()
     })
@@ -104,7 +109,7 @@ async def root_handler(request):
     """Root endpoint"""
     return web.json_response({
         "name": "ANORA-V2",
-        "version": "2.0.0",
+        "version": __version__,
         "status": "running"
     })
 
@@ -121,6 +126,7 @@ class AnoraBot:
         self._runner = None
     
     async def init_anora(self) -> bool:
+        global ANORA_AVAILABLE
         logger.info("💜 Initializing ANORA-V2...")
         try:
             from core.emotional_engine import get_emotional_engine
@@ -133,9 +139,13 @@ class AnoraBot:
             logger.info(f"   Phase: {relationship.phase.value} | Level: {relationship.level}/12")
             logger.info(f"   Style: {emotional.get_current_style().value}")
             logger.info(f"   Conflict: {'Active' if conflict.is_in_conflict else 'None'}")
+            ANORA_AVAILABLE = True
+            set_anora_available(True)
             return True
         except Exception as e:
             logger.error(f"ANORA init error: {e}", exc_info=True)
+            ANORA_AVAILABLE = False
+            set_anora_available(False)
             return False
     
     async def init_application(self) -> Application:
@@ -144,17 +154,10 @@ class AnoraBot:
         request = HTTPXRequest(connection_pool_size=50, connect_timeout=60)
         app = ApplicationBuilder().token(settings.telegram_token).request(request).build()
         
-        # ========== REGISTER ALL COMMANDS ==========
-        # General commands: /start, /nova, /status, /flashback, /roleplay, /pindah, /help, /backup, /pause, /resume, /batal
+        # Register all commands
         register_general_commands(app)
-        
-        # Role commands: /role, /statusrole
         register_role_commands(app)
-        
-        # Therapist commands: /pijat, /next, /nego, /deal, /buka, /remas, /pegang, /ganti, /climax, /selesai
         register_therapist_commands(app)
-        
-        # Pelacur commands: /booking, /deal, /mulai, /break, /lanjut, /ganti, /kenceng, /climax, /selesai, /confirm
         register_pelacur_commands(app)
         
         # Message handler (must be last)
@@ -235,7 +238,7 @@ class AnoraBot:
         global _application
         
         logger.info("=" * 70)
-        logger.info("🚀 ANORA-V2 Starting...")
+        logger.info(f"🚀 ANORA-V2 v{__version__} Starting...")
         logger.info("=" * 70)
         
         # Initialize ANORA
