@@ -10,7 +10,7 @@ from telegram.ext import ContextTypes, CommandHandler
 
 from config import get_settings
 
-from ..utils.user_mode import get_user_mode, get_active_role
+from utils.user_mode import get_user_mode, get_active_role
 
 logger = logging.getLogger(__name__)
 
