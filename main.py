@@ -31,7 +31,8 @@ from commands import (
     register_therapist_commands,
     register_pelacur_commands
 )
-from handlers.message import message_handler, set_anora_available
+from .utils.user_mode import get_user_mode, set_user_mode, get_active_role
+from .handlers.message import message_handler, set_anora_available
 __version__ = "2.0.0"
 
 # =============================================================================
