@@ -105,7 +105,31 @@ class RoleManager:
     
     def get_role(self, user_id: int) -> Optional[BaseRole]:
         """Dapatkan role instance untuk user tertentu"""
-        return self._user_roles.get(user_id)
+        # Cek memory dulu
+        role = self._user_roles.get(user_id)
+        if role:
+            return role
+    
+        # ========== FALLBACK: LOAD DARI DATABASE ==========
+        try:
+            import asyncio
+            from utils.user_mode import get_active_role
+        
+            # Ambil active_role dari database (async)
+            loop = asyncio.get_event_loop()
+            active_role = loop.run_until_complete(get_active_role(user_id))
+        
+            if active_role:
+                from roles.manager import ROLE_MAP, normalize_role_id
+                normalized_key = normalize_role_id(active_role)
+                role_class = ROLE_MAP.get(normalized_key)
+                if role_class:
+                    print(f"[ROLE REACTIVATE] user={user_id}, role={active_role}")
+                    return self.set_role(user_id, role_class, normalized_key)
+        except Exception as e:
+            print(f"[ROLE REACTIVATE ERROR] {e}")
+    
+        return None
     
     def get_active_role_key(self, user_id: int) -> Optional[str]:
         """Dapatkan active role key untuk user tertentu"""
