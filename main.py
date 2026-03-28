@@ -32,7 +32,7 @@ from commands import (
     register_pelacur_commands
 )
 from handlers.message import message_handler, set_anora_available
-from . import __version__
+from import __version__
 
 # =============================================================================
 # SETUP LOGGING
