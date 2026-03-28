@@ -144,10 +144,17 @@ class AnoraBot:
         request = HTTPXRequest(connection_pool_size=50, connect_timeout=60)
         app = ApplicationBuilder().token(settings.telegram_token).request(request).build()
         
-        # Register all commands
+        # ========== REGISTER ALL COMMANDS ==========
+        # General commands: /start, /nova, /status, /flashback, /roleplay, /pindah, /help, /backup, /pause, /resume, /batal
         register_general_commands(app)
+        
+        # Role commands: /role, /statusrole
         register_role_commands(app)
+        
+        # Therapist commands: /pijat, /next, /nego, /deal, /buka, /remas, /pegang, /ganti, /climax, /selesai
         register_therapist_commands(app)
+        
+        # Pelacur commands: /booking, /deal, /mulai, /break, /lanjut, /ganti, /kenceng, /climax, /selesai, /confirm
         register_pelacur_commands(app)
         
         # Message handler (must be last)
