@@ -18,7 +18,7 @@ from core.brain import get_anora_brain
 from memory.persistent import get_anora_persistent
 from roleplay.integration import get_anora_roleplay
 
-from ..utils.user_mode import set_user_mode, get_user_mode
+from utils.user_mode import set_user_mode, get_user_mode
 
 logger = logging.getLogger(__name__)
 
