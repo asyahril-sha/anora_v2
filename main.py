@@ -25,7 +25,7 @@ from telegram.ext import (
 from telegram.request import HTTPXRequest
 
 from config import get_settings
-from .commands import (
+from commands import (
     register_general_commands,
     register_role_commands,
     register_therapist_commands,
