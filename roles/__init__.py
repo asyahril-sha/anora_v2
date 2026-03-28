@@ -1,38 +1,22 @@
-# anora/roles/__init__.py
 """
-ANORA Roles Package
+ANORA-V2 Roles Package
+Semua role dengan akses penuh sesuai level, sama seperti Nova.
 """
 
-from .base_role import BaseRole
+from .base import BaseRole
+from .manager import RoleManager, get_role_manager
+
 from .ipar import IparRole
 from .teman_kantor import TemanKantorRole
 from .pelakor import PelakorRole
 from .istri_orang import IstriOrangRole
-from .therapist_role import TherapistRole, get_therapist_manager
-from .pelacur_role import PelacurRole, get_pelacur_manager
-from .manager import (
-    RoleManager,
-    get_role_manager,
-    role_manager,
-    ROLE_MAP,
-    normalize_role_id,
-    get_role_class,
-)
 
 __all__ = [
     'BaseRole',
+    'RoleManager',
+    'get_role_manager',
     'IparRole',
     'TemanKantorRole',
     'PelakorRole',
     'IstriOrangRole',
-    'TherapistRole',
-    'PelacurRole',
-    'RoleManager',
-    'get_role_manager',
-    'role_manager',
-    'ROLE_MAP',
-    'normalize_role_id',
-    'get_role_class',
-    'get_therapist_manager',
-    'get_pelacur_manager',
 ]
