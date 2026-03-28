@@ -31,7 +31,7 @@ from commands import (
     register_therapist_commands,
     register_pelacur_commands
 )
-from .handlers.message import message_handler, set_anora_available
+from handlers.message import message_handler, set_anora_available
 from . import __version__
 
 # =============================================================================
