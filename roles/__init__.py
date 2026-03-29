@@ -4,7 +4,7 @@ Semua role dengan akses penuh sesuai level, sama seperti Nova.
 """
 
 from .base import BaseRole
-from .manager import RoleManager, get_role_manager
+from roles.manager import get_role_manager
 
 from .ipar import IparRole
 from .teman_kantor import TemanKantorRole
