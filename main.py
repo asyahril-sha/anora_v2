@@ -191,13 +191,14 @@ async def nova_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         greeting = "*Nova duduk santai*\n\n\"Malam, Mas...\""
 
     await update.message.reply_text(
-        f"💜 **NOVA DI SINI, MAS** 💜
-\n"
-        f"{greeting}\n\n"
-        f"**Status singkat:**
-"
-        f"- Fase: {relationship.phase.value.upper()} (Level {relationship.level}/12)\n"
-        f"- Gaya: {style.value.upper()}\n",
+        f"""💜 **NOVA DI SINI, MAS** 💜
+
+    {greeting}
+
+    **Status singkat:**
+    - Fase: {relationship.phase.value.upper()} (Level {relationship.level}/12)
+    - Gaya: {style.value.upper()}
+    """,
         parse_mode="Markdown",
     )
 
