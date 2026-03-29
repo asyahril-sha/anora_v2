@@ -647,15 +647,14 @@ class PersistentMemory:
 # SINGLETON
 # =============================================================================
 
-_anora_persistent: Optional[PersistentMemory] = None
+from config import get_settings
 
+_anora_persistent: Optional[PersistentMemory] = None
 
 async def get_anora_persistent() -> PersistentMemory:
     global _anora_persistent
     if _anora_persistent is None:
-        _anora_persistent = PersistentMemory()
+        settings = get_settings()
+        _anora_persistent = PersistentMemory(db_path=settings.database.path)
         await _anora_persistent.init()
     return _anora_persistent
-
-
-anora_persistent = None
