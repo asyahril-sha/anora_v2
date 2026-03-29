@@ -8,6 +8,7 @@ import time
 import json
 import aiosqlite
 import logging
+import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
@@ -35,11 +36,16 @@ class PersistentMemory:
         self.db_path = db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = None
+        self._lock = asyncio.Lock()
     
     async def init(self):
         """Buat semua tabel memory"""
         self._conn = await aiosqlite.connect(str(self.db_path))
         self._conn.row_factory = aiosqlite.Row
+
+        await self._conn.execute("PRAGMA journal_mode=WAL;")
+        await self._conn.execute("PRAGMA synchronous=NORMAL;")
+        await self._conn.execute("PRAGMA busy_timeout=5000;")
         
         # ========== TABEL STATE UTAMA ==========
         await self._conn.execute('''
@@ -468,12 +474,14 @@ class PersistentMemory:
         await self.save_relationship_state(relationship)
         await self.save_conflict_state(conflict)
         await self.save_current_state(brain)
+        await self.save_tracker_state(brain)
     
     async def load_all_states(self, brain, emotional, relationship, conflict):
         await self.load_complete_state(brain)
         await self.load_emotional_state(emotional)
         await self.load_relationship_state(relationship)
         await self.load_conflict_state(conflict)
+        await self.load_tracker_state(brain)
     
     # =========================================================================
     # CURRENT STATE METHODS
@@ -641,7 +649,24 @@ class PersistentMemory:
     async def close(self):
         if self._conn:
             await self._conn.close()
+            
+    async def save_tracker_state(self, brain):
+        try:
+            data = json.dumps(brain.tracker.to_dict(), ensure_ascii=False)
+            await self.set_state("tracker_state_v2", data)
+        except Exception as e:
+            logger.error(f"Error saving tracker state: {e}")
 
+    async def load_tracker_state(self, brain) -> bool:
+        try:
+            raw = await self.get_state("tracker_state_v2")
+            if not raw:
+                return False
+            brain.tracker.from_dict(json.loads(raw))
+            return True
+        except Exception as e:
+            logger.error(f"Error loading tracker state: {e}")
+            return False
 
 # =============================================================================
 # SINGLETON
