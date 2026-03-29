@@ -771,6 +771,20 @@ class AnoraBot:
 
             # Load everything (including tracker if your persistent implements it)
             await persistent.load_all_states(brain, emotional, relationship, conflict)
+            if ROLE_MANAGER_AVAILABLE:
+                try:
+                    role_manager = get_role_manager()
+                    await role_manager.load_all(persistent)
+                    logger.info("✅ Roles loaded from DB")
+                except Exception as e:
+                    logger.error(f"Role load_all error: {e}", exc_info=True)
+            if ROLE_MANAGER_AVAILABLE:
+                try:
+                    role_manager = get_role_manager()
+                    await role_manager.save_all(persistent)
+                    logger.info("💾 Autosave roles OK")
+                except Exception as e:
+                    logger.error(f"Autosave roles error: {e}", exc_info=True)
 
             # Sync wrappers after load (if available)
             try:
@@ -918,6 +932,14 @@ class AnoraBot:
                 conflict = get_conflict_engine()
 
                 await persistent.save_all_states(brain, emotional, relationship, conflict)
+
+                if ROLE_MANAGER_AVAILABLE:
+                try:
+                    role_manager = get_role_manager()
+                    await role_manager.save_all(persistent)
+                    logger.info("💾 Final roles saved")
+                except Exception as e:
+                    logger.error(f"Final roles save error: {e}", exc_info=True)
 
                 if ROLEPLAY_AVAILABLE:
                     roleplay = await get_anora_roleplay()
