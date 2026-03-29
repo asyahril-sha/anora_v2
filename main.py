@@ -264,7 +264,7 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         await update.message.reply_text(f"❌ Backup gagal: {e}")
-            return
+        return
 
 # =============================================================================
 # MESSAGE HANDLER
