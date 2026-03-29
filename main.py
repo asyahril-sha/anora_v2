@@ -259,29 +259,13 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(
             f"✅ Backup saved: `{backup_path.name}`
-Size: {size_kb:.2f} KB",
+        Size: {size_kb:.2f} KB",
             parse_mode="Markdown",
         )
 
     except Exception as e:
         await update.message.reply_text(f"❌ Backup gagal: {e}")
             return
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = _backup_dir / f"anora_v2_backup_{timestamp}.db"
-        shutil.copy(db_path, backup_path)
-
-        size_kb = db_path.stat().st_size / 1024
-        
-        await update.message.reply_text(
-            f"✅ Backup saved: `{backup_path.name}`
-        Size: {size_kb:.2f} KB",
-            parse_mode="Markdown",
-        )
-    
-    except Exception as e:
-        await update.message.reply_text(f"❌ Backup gagal: {e}")
-
 
 # =============================================================================
 # MESSAGE HANDLER
