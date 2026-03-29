@@ -256,7 +256,7 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             (
                 f"✅ Backup saved: `{backup_path.name}`
-            "
+        "
                 f"Size: {size_kb:.2f} KB"
             ),
             parse_mode="Markdown",
