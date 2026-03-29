@@ -1,10 +1,10 @@
 """
-ANORA-V2 Main Entry Point (CONSOLIDATED)
+ANORA-V2 Main Entry Point (CONSOLIDATED - CLEAN)
 - Telegram bot + aiohttp web server (Railway webhook)
-- Full command handlers (start/nova/status/flashback/roleplay/pindah/role/... + pause/resume/backup/help)
-- Robust imports: bot tetap jalan walau roleplay/roles modul error
+- Command handlers: start/nova/status/flashback/roleplay/pindah/role/statusrole/pause/resume/batal/backup/help
+- Robust imports: bot tetap jalan walau roleplay/roles error import
 - Persistent load on startup + periodic full save
-- Clear logging of feature availability
+- Logger jelas untuk lihat fitur aktif atau tidak
 """
 
 import os
@@ -13,11 +13,9 @@ import asyncio
 import signal
 import logging
 import shutil
-import time
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
-from roles.manager import get_role_manager
 
 from aiohttp import web
 from telegram import Update
@@ -32,6 +30,7 @@ from telegram.ext import (
 from telegram.request import HTTPXRequest
 
 from config import get_settings
+
 
 # =============================================================================
 # LOGGING
@@ -84,7 +83,6 @@ except Exception as e:
     logger.error(f"❌ memory.persistent import ERROR: {e}", exc_info=True)
     ANORA_AVAILABLE = False
 
-
 # Roleplay (optional)
 try:
     from roleplay.integration import get_anora_roleplay
@@ -93,7 +91,7 @@ except Exception as e:
     logger.error(f"❌ roleplay import ERROR: {e}", exc_info=True)
     ROLEPLAY_AVAILABLE = False
 
-# Role manager (optional)
+# Roles (optional)
 try:
     from roles.manager import get_role_manager
     ROLE_MANAGER_AVAILABLE = True
@@ -101,9 +99,11 @@ except Exception as e:
     logger.error(f"❌ roles.manager import ERROR: {e}", exc_info=True)
     ROLE_MANAGER_AVAILABLE = False
 
-
 logger.info("✅ Module import finished")
-logger.info(f"FEATURE FLAGS | ANORA_AVAILABLE={ANORA_AVAILABLE} | ROLEPLAY_AVAILABLE={ROLEPLAY_AVAILABLE} | ROLE_MANAGER_AVAILABLE={ROLE_MANAGER_AVAILABLE}")
+logger.info(
+    f"FEATURE FLAGS | ANORA_AVAILABLE={ANORA_AVAILABLE} | "
+    f"ROLEPLAY_AVAILABLE={ROLEPLAY_AVAILABLE} | ROLE_MANAGER_AVAILABLE={ROLE_MANAGER_AVAILABLE}"
+)
 
 
 # =============================================================================
@@ -130,20 +130,7 @@ def get_active_role(user_id: int) -> Optional[str]:
 
 
 # =============================================================================
-# OPTIONAL ROLE MANAGERS HELPERS (only if those role files exist)
-# =============================================================================
-async def _get_therapist_manager(user_id: int):
-    from roles.therapist_role import get_therapist_manager
-    return get_therapist_manager(user_id)
-
-
-async def _get_pelacur_manager(user_id: int):
-    from roles.pelacur_role import get_pelacur_manager
-    return get_pelacur_manager(user_id)
-
-
-# =============================================================================
-# COMMAND HANDLERS (CORE)
+# COMMAND HANDLERS
 # =============================================================================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -157,7 +144,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     set_user_mode(user_id, "chat")
 
-    # Show what features are enabled
     await update.message.reply_text(
         (
             "✅ ANORA-V2 siap.\n\n"
@@ -170,8 +156,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "- /role <id>\n"
             "- /statusrole\n"
             "- /pause, /resume, /batal\n"
-            "- /backup\n\n"
-            f"Status fitur:\n"
+            "- /backup\n"
+            "- /help\n\n"
+            "Status fitur:\n"
             f"- ANORA_AVAILABLE: {ANORA_AVAILABLE}\n"
             f"- ROLEPLAY_AVAILABLE: {ROLEPLAY_AVAILABLE}\n"
             f"- ROLE_MANAGER_AVAILABLE: {ROLE_MANAGER_AVAILABLE}\n"
@@ -210,16 +197,9 @@ async def nova_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         greeting = "*Nova duduk santai*\n\n\"Malam, Mas...\""
 
+    # 1 line safe string
     await update.message.reply_text(
-        (
-            f"💜 **NOVA DI SINI, MAS** 💜
-\n"
-            f"{greeting}\n\n"
-            f"**Status singkat:**
-"
-            f"- Fase: {relationship.phase.value.upper()} (Level {relationship.level}/12)\n"
-            f"- Gaya: {style.value.upper()}\n"
-        ),
+        f"💜 **NOVA DI SINI, MAS** 💜\n\n{greeting}\n\n**Status singkat:**\n- Fase: {relationship.phase.value.upper()} (Level {relationship.level}/12)\n- Gaya: {style.value.upper()}\n",
         parse_mode="Markdown",
     )
 
@@ -252,14 +232,17 @@ async def flashback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     brain = get_anora_brain()
 
-    if getattr(brain, "long_term", None) and getattr(brain.long_term, "momen_penting", None):
-        if brain.long_term.momen_penting:
-            momen = brain.long_term.momen_penting[-1]
-            await update.message.reply_text(
-                f"💜 *Flashback...*\n\n{momen.get('momen','')}\n\n*rasanya {momen.get('perasaan','')}*",
-                parse_mode="Markdown",
-            )
-            return
+    try:
+        if getattr(brain, "long_term", None) and getattr(brain.long_term, "momen_penting", None):
+            if brain.long_term.momen_penting:
+                momen = brain.long_term.momen_penting[-1]
+                await update.message.reply_text(
+                    f"💜 *Flashback...*\n\n{momen.get('momen','')}\n\n*rasanya {momen.get('perasaan','')}*",
+                    parse_mode="Markdown",
+                )
+                return
+    except Exception:
+        pass
 
     await update.message.reply_text(
         "Mas... inget gak waktu pertama kali kita makan bakso bareng? 💜",
@@ -310,8 +293,7 @@ async def pindah_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if not args:
         await update.message.reply_text(
-            "📍 Gunakan: `/pindah <tempat>`
-Contoh: `/pindah kamar`",
+            "📍 Gunakan: `/pindah <tempat>`\nContoh: `/pindah kamar`",
             parse_mode="Markdown",
         )
         return
@@ -349,11 +331,9 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not args:
         roles = role_manager.get_all_roles()
-        menu = "📋 **Role yang tersedia:**
-\n"
+        menu = "📋 **Role yang tersedia:**\n\n"
         for r in roles:
-            menu += f"• `/role {r['id']}` - **{r['nama']}** (Level {r['level']})
-"
+            menu += f"• `/role {r['id']}` - **{r['nama']}** (Level {r['level']})\n"
         menu += "\n_Ketik /batal kalo mau balik ke Nova._"
         await update.message.reply_text(menu, parse_mode="Markdown")
         return
@@ -400,7 +380,6 @@ async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("Role tidak ditemukan.")
         return
 
-    # Kalau BaseRole punya format_status(), gunakan
     try:
         status = role.format_status()
     except Exception:
@@ -418,7 +397,6 @@ async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     set_user_mode(user_id, "chat")
 
-    # Stop roleplay if active
     if ROLEPLAY_AVAILABLE:
         try:
             roleplay = await get_anora_roleplay()
@@ -436,6 +414,7 @@ async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def pause_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     settings = get_settings()
+
     if user_id != settings.admin_id:
         return
 
@@ -446,7 +425,6 @@ async def pause_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     set_user_mode(user_id, "paused")
 
-    # If roleplay active, try save its state
     if ROLEPLAY_AVAILABLE:
         try:
             roleplay = await get_anora_roleplay()
@@ -455,8 +433,7 @@ async def pause_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.warning(f"Pause save roleplay failed: {e}")
 
     await update.message.reply_text(
-        "💜 **Sesi dihentikan sementara** 💜
-\nKirim **/resume** untuk lanjut lagi.\nKirim **/batal** untuk mulai baru.",
+        "💜 **Sesi dihentikan sementara** 💜\n\nKirim **/resume** untuk lanjut lagi.\nKirim **/batal** untuk mulai baru.",
         parse_mode="Markdown",
     )
 
@@ -464,6 +441,7 @@ async def pause_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def resume_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     settings = get_settings()
+
     if user_id != settings.admin_id:
         return
 
@@ -474,14 +452,12 @@ async def resume_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     set_user_mode(user_id, "chat")
     await update.message.reply_text(
-        "💜 **Sesi dilanjutkan!** 💜
-\nKirim **/roleplay** kalo mau mode roleplay.",
+        "💜 **Sesi dilanjutkan!** 💜\n\nKirim **/roleplay** kalo mau mode roleplay.",
         parse_mode="Markdown",
     )
 
 
 async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler /backup (safe string, no multiline f-string issues)"""
     user_id = update.effective_user.id
     settings = get_settings()
 
@@ -507,11 +483,9 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         size_kb = db_path.stat().st_size / 1024
 
         await update.message.reply_text(
-            f"✅ Backup saved: `{backup_path.name}`
-Size: {size_kb:.2f} KB",
+            f"✅ Backup saved: `{backup_path.name}`\nSize: {size_kb:.2f} KB",
             parse_mode="Markdown",
         )
-
     except Exception as e:
         await update.message.reply_text(f"❌ Backup gagal: {e}")
 
@@ -543,17 +517,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =============================================================================
-# ROLE-SPECIFIC COMMANDS (optional)
-# NOTE: If these functions don't exist in this file, we will not register them.
-# You can paste your old implementations below, unchanged.
-# =============================================================================
-
-# Therapist handlers (placeholder; keep your original implementations if you have them)
-# pelacur handlers too
-# If you already have these in your old main.py, paste them under this section.
-
-
-# =============================================================================
 # MESSAGE HANDLER
 # =============================================================================
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -568,7 +531,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     mode = get_user_mode(user_id)
-
     logger.info(f"📨 Message from {user_id} | mode={mode} | text={pesan[:80]}")
 
     if mode == "paused":
@@ -578,7 +540,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Roleplay mode
     if mode == "roleplay":
         if not ROLEPLAY_AVAILABLE:
             await update.message.reply_text("Roleplay belum tersedia.", parse_mode="Markdown")
@@ -593,7 +554,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("*Nova bingung sebentar*", parse_mode="Markdown")
             return
 
-    # Role mode
     if mode == "role" and ROLE_MANAGER_AVAILABLE:
         active_role = get_active_role(user_id)
         if active_role:
@@ -607,7 +567,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("Maaf, ada error.")
                 return
 
-    # Default chat mode
     await update.message.reply_text(
         "*Nova tersenyum*\n\n\"Iya, Mas. Nova dengerin kok.\"",
         parse_mode="Markdown",
@@ -640,7 +599,6 @@ async def webhook_handler(request: web.Request):
 
     settings = get_settings()
 
-    # Optional secret verification
     secret = settings.webhook.secret_token
     if secret:
         header_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
@@ -663,7 +621,6 @@ async def health_handler(request: web.Request):
         {
             "status": "healthy",
             "bot": "ANORA-V2",
-            "version": "2.0.0",
             "anora_available": ANORA_AVAILABLE,
             "roleplay_available": ROLEPLAY_AVAILABLE,
             "role_manager_available": ROLE_MANAGER_AVAILABLE,
@@ -674,18 +631,13 @@ async def health_handler(request: web.Request):
 
 
 async def root_handler(request: web.Request):
-    return web.json_response({"name": "ANORA-V2", "version": "2.0.0", "status": "running"})
+    return web.json_response({"name": "ANORA-V2", "status": "running"})
 
 
 # =============================================================================
 # BACKGROUND LOOPS
 # =============================================================================
 async def save_state_loop():
-    """
-    Periodic full save:
-    - persistent.save_all_states(brain, emotional, relationship, conflict)
-    - roleplay.save_state() if active
-    """
     while True:
         await asyncio.sleep(60)
 
@@ -700,10 +652,18 @@ async def save_state_loop():
             relationship = get_relationship_manager()
             conflict = get_conflict_engine()
 
-            # Full save
             await persistent.save_all_states(brain, emotional, relationship, conflict)
 
-            # Roleplay extra save (only if active)
+            # save roles
+            if ROLE_MANAGER_AVAILABLE:
+                try:
+                    role_manager = get_role_manager()
+                    await role_manager.save_all(persistent)
+                    logger.info("💾 Autosave roles OK")
+                except Exception as e:
+                    logger.error(f"Autosave roles error: {e}", exc_info=True)
+
+            # roleplay extra save
             if ROLEPLAY_AVAILABLE:
                 roleplay = await get_anora_roleplay()
                 if getattr(roleplay, "is_active", False):
@@ -715,16 +675,13 @@ async def save_state_loop():
 
 
 async def auto_backup_loop():
-    """
-    Auto backup every 6 hours, if enabled.
-    """
     settings = get_settings()
     if not settings.features.auto_backup_enabled:
         logger.info("Auto backup disabled by settings")
         return
 
     while True:
-        await asyncio.sleep(21600)  # 6 hours
+        await asyncio.sleep(21600)
 
         if not ANORA_AVAILABLE:
             continue
@@ -742,7 +699,7 @@ async def auto_backup_loop():
 
 
 # =============================================================================
-# MAIN BOT CLASS
+# BOT CLASS
 # =============================================================================
 class AnoraBot:
     def __init__(self):
@@ -753,9 +710,6 @@ class AnoraBot:
         self._runner: Optional[web.AppRunner] = None
 
     async def init_anora(self) -> bool:
-        """
-        Initialize + LOAD from DB once at startup.
-        """
         logger.info("💜 Initializing ANORA-V2 (startup load)...")
 
         if not ANORA_AVAILABLE:
@@ -770,8 +724,9 @@ class AnoraBot:
             relationship = get_relationship_manager()
             conflict = get_conflict_engine()
 
-            # Load everything (including tracker if your persistent implements it)
             await persistent.load_all_states(brain, emotional, relationship, conflict)
+
+            # load roles state
             if ROLE_MANAGER_AVAILABLE:
                 try:
                     role_manager = get_role_manager()
@@ -779,22 +734,17 @@ class AnoraBot:
                     logger.info("✅ Roles loaded from DB")
                 except Exception as e:
                     logger.error(f"Role load_all error: {e}", exc_info=True)
-            if ROLE_MANAGER_AVAILABLE:
-                try:
-                    role_manager = get_role_manager()
-                    await role_manager.save_all(persistent)
-                    logger.info("💾 Autosave roles OK")
-                except Exception as e:
-                    logger.error(f"Autosave roles error: {e}", exc_info=True)
 
-            # Sync wrappers after load (if available)
             try:
                 brain._sync_all()
             except Exception:
                 pass
 
             logger.info("✅ Startup load completed")
-            logger.info(f"STATE | phase={relationship.phase.value} | level={relationship.level}/12 | style={emotional.get_current_style().value}")
+            logger.info(
+                f"STATE | phase={relationship.phase.value} | level={relationship.level}/12 | "
+                f"style={emotional.get_current_style().value}"
+            )
             return True
         except Exception as e:
             logger.error(f"init_anora error: {e}", exc_info=True)
@@ -807,7 +757,7 @@ class AnoraBot:
         request = HTTPXRequest(connection_pool_size=50, connect_timeout=60)
         app = ApplicationBuilder().token(settings.telegram_token).request(request).build()
 
-        # Full handler registration
+        # Commands
         app.add_handler(CommandHandler("start", start_command))
         app.add_handler(CommandHandler("nova", nova_command))
         app.add_handler(CommandHandler("status", status_command))
@@ -816,15 +766,13 @@ class AnoraBot:
         app.add_handler(CommandHandler("pindah", pindah_command))
         app.add_handler(CommandHandler("role", role_command))
         app.add_handler(CommandHandler("statusrole", statusrole_command))
-        app.add_handler(CommandHandler("role", role_command))
-        app.add_handler(CommandHandler("statusrole", statusrole_command))
-        app.add_handler(CommandHandler("batal", back_to_nova))
         app.add_handler(CommandHandler("pause", pause_session))
         app.add_handler(CommandHandler("resume", resume_session))
+        app.add_handler(CommandHandler("batal", back_to_nova))
         app.add_handler(CommandHandler("backup", backup_command))
         app.add_handler(CommandHandler("help", help_command))
 
-        # Message handler must be last
+        # Message handler last
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
         app.add_error_handler(error_handler)
 
@@ -897,11 +845,9 @@ class AnoraBot:
         webhook_ok = await self.setup_webhook()
         logger.info(f"WEBHOOK | ok={webhook_ok}")
 
-        # Start background loops
         self._save_task = asyncio.create_task(save_state_loop())
         self._backup_task = asyncio.create_task(auto_backup_loop())
 
-        # Always start web server
         await self.start_web_server()
 
         logger.info("=" * 70)
@@ -916,7 +862,6 @@ class AnoraBot:
         logger.info("🛑 Shutting down...")
         self._shutdown_flag = True
 
-        # Stop loops
         for task in [self._save_task, self._backup_task]:
             if task:
                 task.cancel()
@@ -925,7 +870,6 @@ class AnoraBot:
                 except asyncio.CancelledError:
                     pass
 
-        # Final save
         if ANORA_AVAILABLE:
             try:
                 persistent = await get_anora_persistent()
@@ -937,12 +881,12 @@ class AnoraBot:
                 await persistent.save_all_states(brain, emotional, relationship, conflict)
 
                 if ROLE_MANAGER_AVAILABLE:
-                try:
-                    role_manager = get_role_manager()
-                    await role_manager.save_all(persistent)
-                    logger.info("💾 Final roles saved")
-                except Exception as e:
-                    logger.error(f"Final roles save error: {e}", exc_info=True)
+                    try:
+                        role_manager = get_role_manager()
+                        await role_manager.save_all(persistent)
+                        logger.info("💾 Final roles saved")
+                    except Exception as e:
+                        logger.error(f"Final roles save error: {e}", exc_info=True)
 
                 if ROLEPLAY_AVAILABLE:
                     roleplay = await get_anora_roleplay()
@@ -953,7 +897,6 @@ class AnoraBot:
             except Exception as e:
                 logger.error(f"Final save error: {e}", exc_info=True)
 
-        # Stop telegram
         if self.application:
             try:
                 await self.application.stop()
@@ -962,7 +905,6 @@ class AnoraBot:
             except Exception as e:
                 logger.error(f"Error stopping application: {e}", exc_info=True)
 
-        # Stop web server
         if self._runner:
             await self._runner.cleanup()
             logger.info("✅ Web server stopped")
