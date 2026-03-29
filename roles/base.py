@@ -1,651 +1,977 @@
 """
-ANORA-V2 Base Role - Semua role punya engine seperti Nova
-DENGAN STATE TRACKER - memastikan tidak ada yang ngelantur
-Akses konten berdasarkan level, bukan berdasarkan role type.
+ANORA-V2 Main Entry Point (CONSOLIDATED)
+- Telegram bot + aiohttp web server (Railway webhook)
+- Full command handlers (start/nova/status/flashback/roleplay/pindah/role/... + pause/resume/backup/help)
+- Robust imports: bot tetap jalan walau roleplay/roles modul error
+- Persistent load on startup + periodic full save
+- Clear logging of feature availability
 """
 
-import time
+import os
+import sys
+import asyncio
+import signal
 import logging
-from typing import Dict, List, Optional, Any, Tuple
-from enum import Enum
+import shutil
+import time
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, Optional
 
-from core.emotional_engine import EmotionalEngine, EmotionalStyle
-from core.relationship import RelationshipManager, RelationshipPhase
-from core.conflict_engine import ConflictEngine, ConflictType
-from core.state_tracker import StateTracker, IntimacyPhase, PhysicalCondition
+from aiohttp import web
+from telegram import Update
+from telegram.ext import (
+    Application,
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+)
+from telegram.request import HTTPXRequest
 
-logger = logging.getLogger(__name__)
+from config import get_settings
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-5s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    force=True,
+)
+logger = logging.getLogger("ANORA-V2")
 
 
-class BaseRole:
-    """
-    Base class untuk semua role.
-    Setiap role punya semua engine seperti Nova, termasuk State Tracker.
-    """
-    
-    def __init__(self, 
-                 name: str, 
-                 nickname: str,
-                 role_type: str,
-                 panggilan: str,
-                 hubungan_dengan_nova: str,
-                 default_clothing: str,
-                 hijab: bool = True,
-                 appearance: str = ""):
-        
-        self.name = name
-        self.nickname = nickname
-        self.role_type = role_type
-        self.panggilan = panggilan
-        self.hubungan_dengan_nova = hubungan_dengan_nova
-        self.appearance = appearance
-        
-        # ========== ALL ENGINES (SAMA SEPERTI NOVA) ==========
-        self.emotional = EmotionalEngine()
-        self.relationship = RelationshipManager()
-        self.conflict = ConflictEngine()
-        
-        # ========== STATE TRACKER (BARU - WAJIB) ==========
-        self.tracker = StateTracker(character_name=name)
-        
-        # Sync tracker dengan clothing awal
-        self.tracker.clothing['hijab']['on'] = hijab
-        self.tracker.clothing['hijab']['color'] = 'pink muda' if hijab else None
-        self.tracker.clothing['top']['on'] = True
-        self.tracker.clothing['top']['type'] = default_clothing
-        self.tracker.clothing['bra']['on'] = True
-        self.tracker.clothing['bra']['color'] = 'putih polos'
-        self.tracker.clothing['cd']['on'] = True
-        self.tracker.clothing['cd']['color'] = 'putih motif bunga'
-        
-        # ========== PHYSICAL STATE (SYNC DENGAN TRACKER) ==========
-        self.position = "duduk"
-        self.location = "kamar"
-        self.activity = "santai"
-        self.mood = "netral"
-        
-        # Sync tracker location
-        self.tracker.position = self.position
-        self.tracker.location = self.location
-        self.tracker.location_detail = "ruangan"
-        self.tracker.activity = self.activity
-        
-        # ========== MEMORY (SAMA SEPERTI NOVA) ==========
-        self.conversations: List[Dict] = []
-        self.important_moments: List[str] = []
-        
-        # Short-term memory (sliding window) - sync dengan tracker
-        # Tracker sudah punya short_term, jadi pakai itu
-        
-        # Long-term memory
-        self.long_term_memory: Dict[str, List] = {
-            'kebiasaan_mas': [],
-            'momen_penting': [],
-            'janji': [],
-            'rencana': []
-        }
-        
-        # ========== ROLE-SPECIFIC MEMORY (AKAN DIOVERRIDE DI SUBCLASS) ==========
-        self.role_flags: Dict[str, float] = {}
-        
-        # ========== TIMESTAMPS ==========
-        self.created_at = time.time()
-        self.last_interaction = time.time()
-        
-        # ========== FLAGS ==========
-        self.is_active = False
-        
-        # Init memory awal
-        self._init_memory()
-        
-        logger.info(f"👤 Role {self.name} ({nickname}) initialized with StateTracker")
-        logger.info(f"   Phase: {self.relationship.phase.value}")
-        logger.info(f"   Level: {self.relationship.level}/12")
-        logger.info(f"   Style: {self.emotional.get_current_style().value}")
-        logger.info(f"   Clothing: {self.tracker.get_clothing_summary()}")
-    
-    def _init_memory(self):
-        """Init memory awal untuk role"""
-        self.long_term_memory['kebiasaan_mas'].append({
-            'konten': "suka kopi latte",
-            'deskripsi': "Mas suka kopi latte",
-            'timestamp': time.time()
-        })
-    
-    # =========================================================================
-    # UPDATE FROM MESSAGE (DENGAN STATE TRACKER)
-    # =========================================================================
-    
-    def update_from_message(self, pesan_mas: str) -> Dict:
-        """
-        Update semua state dari pesan Mas.
-        DENGAN STATE TRACKER - memastikan tidak ada yang ngelantur.
-        """
-        msg_lower = pesan_mas.lower()
-        perubahan = []
-        
-        # ========== 1. UPDATE PAKAIAN (DENGAN STATE TRACKER) ==========
-        
-        # Buka Hijab (hanya jika berhijab)
-        if self.tracker.clothing['hijab']['on'] and 'buka hijab' in msg_lower:
-            result = self.tracker.remove_clothing('hijab', "Mas buka")
-            if result['success']:
-                perubahan.append(f"{self.name} buka hijab")
-                self.tracker.add_to_timeline(f"{self.name} buka hijab", "rambut terurai")
-        
-        # Buka Baju
-        if self.tracker.clothing['top']['on'] and 'buka baju' in msg_lower:
-            result = self.tracker.remove_clothing('top', "Mas buka")
-            if result['success']:
-                perubahan.append(f"{self.name} buka baju")
-                self.tracker.add_to_timeline(f"{self.name} buka baju", f"sekarang {result['remaining']}")
-        
-        # Buka Bra
-        if self.tracker.clothing['bra']['on'] and 'buka bra' in msg_lower:
-            result = self.tracker.remove_clothing('bra', "Mas buka")
-            if result['success']:
-                perubahan.append(f"{self.name} buka bra")
-                self.tracker.add_to_timeline(f"{self.name} buka bra", f"sekarang {result['remaining']}")
-        
-        # Buka CD
-        if self.tracker.clothing['cd']['on'] and 'buka cd' in msg_lower:
-            result = self.tracker.remove_clothing('cd', "Mas buka")
-            if result['success']:
-                perubahan.append(f"{self.name} buka cd")
-                self.tracker.add_to_timeline(f"{self.name} buka cd", f"sekarang {result['remaining']}")
-        
-        # ========== 2. UPDATE INTIMACY (DENGAN STATE TRACKER) ==========
-        
-        # Cek apakah perlu mulai intim (natural progression)
-        if self.emotional.should_start_intimacy_naturally(self.relationship.level)[0] and self.tracker.intimacy_phase == IntimacyPhase.NONE:
-            self.tracker.start_intimacy(self.location)
-            perubahan.append(f"Memulai sesi intim - fase {self.tracker.intimacy_phase.value}")
-            self.tracker.add_to_timeline(f"{self.name} memulai sesi intim", "natural progression")
-        
-        # Advance intimacy berdasarkan aksi
-        if self.tracker.intimacy_phase != IntimacyPhase.NONE:
-            advance_result = self.tracker.advance_intimacy(pesan_mas)
-            if advance_result.get('success'):
-                perubahan.append(f"Fase intim: {advance_result['old_phase']} → {advance_result['new_phase']}")
-                self.tracker.add_to_timeline(
-                    f"Fase intim maju ke {advance_result['new_phase']}",
-                    f"Trigger: {pesan_mas[:50]}"
-                )
-        
-        # Record climax
-        climax_keywords = ['climax', 'crot', 'keluar', 'cum', 'habis']
-        if any(k in msg_lower for k in climax_keywords) and self.tracker.intimacy_phase != IntimacyPhase.NONE:
-            location = 'dalam' if 'dalam' in msg_lower else 'luar'
-            is_heavy = any(k in msg_lower for k in ['keras', 'banyak', 'lama'])
-            result = self.tracker.record_climax(location, is_heavy)
-            if result['success']:
-                perubahan.append(f"💦 Climax #{result['climax_count']}")
-                self.tracker.add_to_timeline(
-                    f"Climax #{result['climax_count']}",
-                    f"Lokasi: {location}"
-                )
-                
-                # Update emotional
-                self.emotional.arousal = max(0, self.emotional.arousal - 40)
-                self.emotional.desire = max(0, self.emotional.desire - 30)
-        
-        # ========== 3. UPDATE EMOTIONAL ENGINE ==========
-        emo_changes = self.emotional.update_from_message(pesan_mas, self.relationship.level)
-        for key, val in emo_changes.items():
-            if val != 0:
-                perubahan.append(f"{key}: {val:+.0f}")
-        
-        # ========== 4. UPDATE CONFLICT ENGINE ==========
-        conflict_changes = self.conflict.update_from_message(pesan_mas, self.relationship.level)
-        for key, val in conflict_changes.items():
-            if val != 0:
-                perubahan.append(f"{key}: {val:+.0f}")
-        
-        # ========== 5. UPDATE RELATIONSHIP ==========
-        self.relationship.interaction_count += 1
-        
-        # Cek milestone
-        milestones = []
-        if 'pegang' in msg_lower and not self.relationship.milestones.get('first_touch', False):
-            self.relationship.achieve_milestone('first_touch')
-            milestones.append('first_touch')
-            self._add_to_long_term_memory('momen_penting', f"Mas pegang tangan {self.name}", "first touch")
-            self.tracker.add_to_timeline(f"Milestone: First Touch", f"{self.name} pertama kali dipegang tangannya")
-        
-        if 'peluk' in msg_lower and not self.relationship.milestones.get('first_hug', False):
-            self.relationship.achieve_milestone('first_hug')
-            milestones.append('first_hug')
-            self._add_to_long_term_memory('momen_penting', f"Mas peluk {self.name}", "first hug")
-            self.tracker.add_to_timeline(f"Milestone: First Hug", f"{self.name} pertama kali dipeluk")
-        
-        if 'cium' in msg_lower and not self.relationship.milestones.get('first_kiss', False):
-            self.relationship.achieve_milestone('first_kiss')
-            milestones.append('first_kiss')
-            self._add_to_long_term_memory('momen_penting', f"Mas cium {self.name}", "first kiss")
-            self.tracker.add_to_timeline(f"Milestone: First Kiss", f"{self.name} pertama kali dicium")
-        
-        # Update level
-        new_level, level_up = self.relationship.update_level(
-            self.emotional.sayang,
-            self.emotional.trust,
-            milestones
+# =============================================================================
+# SAFE IMPORTS (core)
+# =============================================================================
+ANORA_AVAILABLE = True
+ROLEPLAY_AVAILABLE = False
+ROLE_MANAGER_AVAILABLE = False
+
+logger.info("Importing ANORA-V2 modules...")
+
+try:
+    from core.emotional_engine import get_emotional_engine
+except Exception as e:
+    logger.error(f"❌ emotional_engine import ERROR: {e}", exc_info=True)
+    ANORA_AVAILABLE = False
+
+try:
+    from core.relationship import get_relationship_manager
+except Exception as e:
+    logger.error(f"❌ relationship import ERROR: {e}", exc_info=True)
+    ANORA_AVAILABLE = False
+
+try:
+    from core.conflict_engine import get_conflict_engine
+except Exception as e:
+    logger.error(f"❌ conflict_engine import ERROR: {e}", exc_info=True)
+    ANORA_AVAILABLE = False
+
+try:
+    from core.brain import get_anora_brain
+except Exception as e:
+    logger.error(f"❌ brain import ERROR: {e}", exc_info=True)
+    ANORA_AVAILABLE = False
+
+try:
+    from memory.persistent import get_anora_persistent
+except Exception as e:
+    logger.error(f"❌ memory.persistent import ERROR: {e}", exc_info=True)
+    ANORA_AVAILABLE = False
+
+
+# Roleplay (optional)
+try:
+    from roleplay.integration import get_anora_roleplay
+    ROLEPLAY_AVAILABLE = True
+except Exception as e:
+    logger.error(f"❌ roleplay import ERROR: {e}", exc_info=True)
+    ROLEPLAY_AVAILABLE = False
+
+# Role manager (optional)
+try:
+    from roles.manager import get_role_manager
+    ROLE_MANAGER_AVAILABLE = True
+except Exception as e:
+    logger.error(f"❌ roles.manager import ERROR: {e}", exc_info=True)
+    ROLE_MANAGER_AVAILABLE = False
+
+
+logger.info("✅ Module import finished")
+logger.info(f"FEATURE FLAGS | ANORA_AVAILABLE={ANORA_AVAILABLE} | ROLEPLAY_AVAILABLE={ROLEPLAY_AVAILABLE} | ROLE_MANAGER_AVAILABLE={ROLE_MANAGER_AVAILABLE}")
+
+
+# =============================================================================
+# GLOBALS
+# =============================================================================
+_application: Optional[Application] = None
+_user_modes: Dict[int, Dict] = {}
+
+_backup_dir = Path("data/backups")
+_backup_dir.mkdir(parents=True, exist_ok=True)
+
+
+def get_user_mode(user_id: int) -> str:
+    return _user_modes.get(user_id, {}).get("mode", "chat")
+
+
+def set_user_mode(user_id: int, mode: str, active_role: Optional[str] = None):
+    _user_modes[user_id] = {"mode": mode, "active_role": active_role}
+    logger.info(f"👤 User {user_id} mode set to: {mode} | active_role={active_role}")
+
+
+def get_active_role(user_id: int) -> Optional[str]:
+    return _user_modes.get(user_id, {}).get("active_role")
+
+
+# =============================================================================
+# OPTIONAL ROLE MANAGERS HELPERS (only if those role files exist)
+# =============================================================================
+async def _get_therapist_manager(user_id: int):
+    from roles.therapist_role import get_therapist_manager
+    return get_therapist_manager(user_id)
+
+
+async def _get_pelacur_manager(user_id: int):
+    from roles.pelacur_role import get_pelacur_manager
+    return get_pelacur_manager(user_id)
+
+
+# =============================================================================
+# COMMAND HANDLERS (CORE)
+# =============================================================================
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    logger.info(f"📨 /start from user {user_id}")
+
+    if user_id != settings.admin_id:
+        await update.message.reply_text("Halo! Bot ini untuk Mas. 💜")
+        return
+
+    set_user_mode(user_id, "chat")
+
+    # Show what features are enabled
+    await update.message.reply_text(
+        (
+            "✅ ANORA-V2 siap.\n\n"
+            "Command cepat:\n"
+            "- /nova\n"
+            "- /status\n"
+            "- /flashback\n"
+            "- /roleplay\n"
+            "- /pindah <tempat>\n"
+            "- /role <id>\n"
+            "- /statusrole\n"
+            "- /pause, /resume, /batal\n"
+            "- /backup\n\n"
+            f"Status fitur:\n"
+            f"- ANORA_AVAILABLE: {ANORA_AVAILABLE}\n"
+            f"- ROLEPLAY_AVAILABLE: {ROLEPLAY_AVAILABLE}\n"
+            f"- ROLE_MANAGER_AVAILABLE: {ROLE_MANAGER_AVAILABLE}\n"
         )
-        
-        if level_up:
-            perubahan.append(f"Level naik ke {new_level}!")
-            self.tracker.add_to_timeline(f"Level naik ke {new_level}", f"Fase: {self.relationship.phase.value}")
-        
-        # ========== 6. UPDATE PHYSICAL STATE ==========
-        self._update_physical_state(pesan_mas, perubahan)
-        
-        # ========== 7. UPDATE ROLE-SPECIFIC STATE (OVERRIDE DI SUBCLASS) ==========
-        self._update_role_specific_state(pesan_mas, perubahan)
-        
-        # ========== 8. UPDATE TIMESTAMPS ==========
-        self.last_interaction = time.time()
-        
-        # ========== 9. TAMBAH KE TIMELINE (VIA TRACKER) ==========
-        self.tracker.add_to_timeline(
-            kejadian=f"Mas: {pesan_mas[:50]}",
-            detail=f"Perubahan: {', '.join(perubahan[:3]) if perubahan else 'tidak ada perubahan'}"
+    )
+
+
+async def nova_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    logger.info(f"📨 /nova from user {user_id}")
+
+    if user_id != settings.admin_id:
+        await update.message.reply_text("Maaf, Nova cuma untuk Mas. 💜")
+        return
+
+    if not ANORA_AVAILABLE:
+        await update.message.reply_text("ANORA-V2 sedang tidak tersedia.")
+        return
+
+    set_user_mode(user_id, "chat")
+
+    emotional = get_emotional_engine()
+    relationship = get_relationship_manager()
+
+    hour = datetime.now().hour
+    style = emotional.get_current_style()
+
+    if 5 <= hour < 11:
+        greeting = "*Nova baru bangun*\n\n\"Pagi, Mas...\""
+    elif 11 <= hour < 15:
+        greeting = "*Nova tersenyum manis*\n\n\"Siang, Mas. Udah makan?\""
+    elif 15 <= hour < 18:
+        greeting = "*Nova duduk di teras*\n\n\"Sore, Mas...\""
+    else:
+        greeting = "*Nova duduk santai*\n\n\"Malam, Mas...\""
+
+    await update.message.reply_text(
+        (
+            f"💜 **NOVA DI SINI, MAS** 💜
+\n"
+            f"{greeting}\n\n"
+            f"**Status singkat:**
+"
+            f"- Fase: {relationship.phase.value.upper()} (Level {relationship.level}/12)\n"
+            f"- Gaya: {style.value.upper()}\n"
+        ),
+        parse_mode="Markdown",
+    )
+
+
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    if user_id != settings.admin_id:
+        return
+
+    if not ANORA_AVAILABLE:
+        await update.message.reply_text("ANORA-V2 sedang tidak tersedia.")
+        return
+
+    brain = get_anora_brain()
+    await update.message.reply_text(brain.format_status(), parse_mode="Markdown")
+
+
+async def flashback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    if user_id != settings.admin_id:
+        return
+
+    if not ANORA_AVAILABLE:
+        await update.message.reply_text("ANORA-V2 sedang tidak tersedia.")
+        return
+
+    brain = get_anora_brain()
+
+    if getattr(brain, "long_term", None) and getattr(brain.long_term, "momen_penting", None):
+        if brain.long_term.momen_penting:
+            momen = brain.long_term.momen_penting[-1]
+            await update.message.reply_text(
+                f"💜 *Flashback...*\n\n{momen.get('momen','')}\n\n*rasanya {momen.get('perasaan','')}*",
+                parse_mode="Markdown",
+            )
+            return
+
+    await update.message.reply_text(
+        "Mas... inget gak waktu pertama kali kita makan bakso bareng? 💜",
+        parse_mode="Markdown",
+    )
+
+
+async def roleplay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    if user_id != settings.admin_id:
+        return
+
+    if not ROLEPLAY_AVAILABLE:
+        await update.message.reply_text(
+            "Roleplay belum tersedia. Cek log Railway untuk error import roleplay.",
+            parse_mode="Markdown",
         )
-        
-        # ========== 10. SIMPAN KE CONVERSATION HISTORY ==========
-        self.add_conversation(pesan_mas, "")
-        
-        return {
-            'emotional_changes': emo_changes,
-            'conflict_changes': conflict_changes,
-            'level_up': level_up,
-            'new_level': new_level,
-            'perubahan': perubahan,
-            'intimacy_phase': self.tracker.intimacy_phase.value,
-            'clothing_state': self.tracker.get_clothing_summary(),
-            'physical_condition': self.tracker.physical_condition.value
-        }
-    
-    def _update_physical_state(self, pesan_mas: str, perubahan: List):
-        """Update physical state (posisi, lokasi, aktivitas)"""
-        msg_lower = pesan_mas.lower()
-        
-        # Update posisi
-        if 'duduk' in msg_lower:
-            self.position = "duduk"
-            self.tracker.position = "duduk"
-            perubahan.append("Posisi duduk")
-        elif 'berdiri' in msg_lower or 'bangun' in msg_lower:
-            self.position = "berdiri"
-            self.tracker.position = "berdiri"
-            perubahan.append("Posisi berdiri")
-        elif 'tidur' in msg_lower or 'rebahan' in msg_lower:
-            self.position = "tidur"
-            self.tracker.position = "tidur"
-            perubahan.append("Posisi tidur")
-        elif 'merangkak' in msg_lower:
-            self.position = "merangkak"
-            self.tracker.position = "merangkak"
-            perubahan.append("Posisi merangkak")
-        
-        # Update lokasi
-        if 'kamar' in msg_lower:
-            self.location = "kamar"
-            self.tracker.location = "kamar"
-            perubahan.append("Di kamar")
-        elif 'ruang tamu' in msg_lower:
-            self.location = "ruang tamu"
-            self.tracker.location = "ruang tamu"
-            perubahan.append("Di ruang tamu")
-        elif 'dapur' in msg_lower:
-            self.location = "dapur"
-            self.tracker.location = "dapur"
-            perubahan.append("Di dapur")
-        elif 'teras' in msg_lower or 'balkon' in msg_lower:
-            self.location = "teras"
-            self.tracker.location = "teras"
-            perubahan.append("Di teras")
-        
-        # Update aktivitas
-        if 'makan' in msg_lower:
-            self.activity = "makan"
-            self.tracker.activity = "makan"
-            perubahan.append("Sedang makan")
-        elif 'minum' in msg_lower:
-            self.activity = "minum"
-            self.tracker.activity = "minum"
-            perubahan.append("Sedang minum")
-        elif 'mandi' in msg_lower:
-            self.activity = "mandi"
-            self.tracker.activity = "mandi"
-            perubahan.append("Sedang mandi")
-        elif 'nonton' in msg_lower:
-            self.activity = "nonton"
-            self.tracker.activity = "nonton"
-            perubahan.append("Sedang nonton")
-    
-    def _update_role_specific_state(self, pesan_mas: str, perubahan: List):
-        """
-        Update role-specific state - OVERRIDE DI SUBCLASS
-        Untuk menambahkan flag khusus seperti guilt, curiosity, dll
-        """
+        return
+
+    mode = get_user_mode(user_id)
+    if mode == "paused":
+        await update.message.reply_text(
+            "💜 Sesi sedang di-pause.\n\nKirim **/resume** untuk lanjut.",
+            parse_mode="Markdown",
+        )
+        return
+
+    set_user_mode(user_id, "roleplay")
+
+    roleplay = await get_anora_roleplay()
+    intro = await roleplay.start()
+    await update.message.reply_text(intro, parse_mode="Markdown")
+
+
+async def pindah_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    if user_id != settings.admin_id:
+        return
+
+    if not ANORA_AVAILABLE:
+        await update.message.reply_text("ANORA-V2 sedang tidak tersedia.")
+        return
+
+    args = context.args
+    if not args:
+        await update.message.reply_text(
+            "📍 Gunakan: `/pindah <tempat>`
+Contoh: `/pindah kamar`",
+            parse_mode="Markdown",
+        )
+        return
+
+    brain = get_anora_brain()
+    tujuan = " ".join(args)
+    result = brain.pindah_lokasi(tujuan)
+
+    if result.get("success"):
+        loc = result.get("location", {})
+        await update.message.reply_text(
+            f"{result.get('message','')}\n\n🎢 Thrill: {loc.get('thrill', 0)}% | ⚠️ Risk: {loc.get('risk', 0)}%",
+            parse_mode="Markdown",
+        )
+    else:
+        await update.message.reply_text(result.get("message", "Lokasi tidak ditemukan."), parse_mode="Markdown")
+
+
+async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    if user_id != settings.admin_id:
+        return
+
+    if not ROLE_MANAGER_AVAILABLE:
+        await update.message.reply_text(
+            "Role manager belum tersedia. Cek log Railway untuk error import roles.manager.",
+            parse_mode="Markdown",
+        )
+        return
+
+    args = context.args
+    role_manager = get_role_manager()
+
+    if not args:
+        roles = role_manager.get_all_roles()
+        menu = "📋 **Role yang tersedia:**
+\n"
+        for r in roles:
+            menu += f"• `/role {r['id']}` - **{r['nama']}** (Level {r['level']})
+"
+        menu += "\n_Ketik /batal kalo mau balik ke Nova._"
+        await update.message.reply_text(menu, parse_mode="Markdown")
+        return
+
+    role_id = args[0].lower()
+
+    set_user_mode(user_id, "role", role_id)
+    try:
+        respon = role_manager.switch_role(role_id)
+        await update.message.reply_text(respon, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"Role switch error: {e}", exc_info=True)
+        await update.message.reply_text("Maaf, ada error saat switch role.", parse_mode="Markdown")
+
+
+async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    if user_id != settings.admin_id:
+        return
+
+    if not ROLE_MANAGER_AVAILABLE:
+        await update.message.reply_text("Role manager belum tersedia.", parse_mode="Markdown")
+        return
+
+    mode = get_user_mode(user_id)
+    if mode != "role":
+        await update.message.reply_text(
+            "💜 Tidak ada role yang sedang aktif.\n\nGunakan **/role <id>** dulu ya, Mas.",
+            parse_mode="Markdown",
+        )
+        return
+
+    active_role_id = get_active_role(user_id)
+    if not active_role_id:
+        await update.message.reply_text("Tidak ada role aktif.")
+        return
+
+    role_manager = get_role_manager()
+    role = role_manager.get_role(active_role_id)
+
+    if not role:
+        await update.message.reply_text("Role tidak ditemukan.")
+        return
+
+    # Kalau BaseRole punya format_status(), gunakan
+    try:
+        status = role.format_status()
+    except Exception:
+        status = "Status role tidak tersedia."
+
+    await update.message.reply_text(status, parse_mode="Markdown")
+
+
+async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    if user_id != settings.admin_id:
+        return
+
+    set_user_mode(user_id, "chat")
+
+    # Stop roleplay if active
+    if ROLEPLAY_AVAILABLE:
+        try:
+            roleplay = await get_anora_roleplay()
+            if getattr(roleplay, "is_active", False):
+                await roleplay.stop()
+        except Exception as e:
+            logger.warning(f"Stop roleplay failed: {e}")
+
+    await update.message.reply_text(
+        "💜 Nova di sini, Mas.\n\n*Nova tersenyum*\n\n\"Mas, cerita dong.\"",
+        parse_mode="Markdown",
+    )
+
+
+async def pause_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+    if user_id != settings.admin_id:
+        return
+
+    current_mode = get_user_mode(user_id)
+    if current_mode == "paused":
+        await update.message.reply_text("💜 Sesi sudah dalam keadaan pause.")
+        return
+
+    set_user_mode(user_id, "paused")
+
+    # If roleplay active, try save its state
+    if ROLEPLAY_AVAILABLE:
+        try:
+            roleplay = await get_anora_roleplay()
+            await roleplay.save_state()
+        except Exception as e:
+            logger.warning(f"Pause save roleplay failed: {e}")
+
+    await update.message.reply_text(
+        "💜 **Sesi dihentikan sementara** 💜
+\nKirim **/resume** untuk lanjut lagi.\nKirim **/batal** untuk mulai baru.",
+        parse_mode="Markdown",
+    )
+
+
+async def resume_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+    if user_id != settings.admin_id:
+        return
+
+    current_mode = get_user_mode(user_id)
+    if current_mode != "paused":
+        await update.message.reply_text("💜 Tidak ada sesi yang di-pause.")
+        return
+
+    set_user_mode(user_id, "chat")
+    await update.message.reply_text(
+        "💜 **Sesi dilanjutkan!** 💜
+\nKirim **/roleplay** kalo mau mode roleplay.",
+        parse_mode="Markdown",
+    )
+
+
+async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /backup (safe string, no multiline f-string issues)"""
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    if user_id != settings.admin_id:
+        return
+
+    if not ANORA_AVAILABLE:
+        await update.message.reply_text("ANORA-V2 tidak tersedia.")
+        return
+
+    try:
+        persistent = await get_anora_persistent()
+        db_path = persistent.db_path
+
+        if not db_path.exists():
+            await update.message.reply_text("❌ Database tidak ditemukan!")
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = _backup_dir / f"anora_v2_backup_{timestamp}.db"
+        shutil.copy(db_path, backup_path)
+
+        size_kb = db_path.stat().st_size / 1024
+
+        await update.message.reply_text(
+            f"✅ Backup saved: `{backup_path.name}`
+Size: {size_kb:.2f} KB",
+            parse_mode="Markdown",
+        )
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Backup gagal: {e}")
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    if user_id != settings.admin_id:
+        await update.message.reply_text("Bot ini untuk Mas. 💜")
+        return
+
+    await update.message.reply_text(
+        (
+            "📖 *Bantuan ANORA-V2*\n\n"
+            "*Command:*\n"
+            "• /nova\n"
+            "• /status\n"
+            "• /flashback\n"
+            "• /roleplay\n"
+            "• /pindah <tempat>\n"
+            "• /role <id>\n"
+            "• /statusrole\n"
+            "• /pause /resume /batal\n"
+            "• /backup\n"
+        ),
+        parse_mode="Markdown",
+    )
+
+
+# =============================================================================
+# ROLE-SPECIFIC COMMANDS (optional)
+# NOTE: If these functions don't exist in this file, we will not register them.
+# You can paste your old implementations below, unchanged.
+# =============================================================================
+
+# Therapist handlers (placeholder; keep your original implementations if you have them)
+# pelacur handlers too
+# If you already have these in your old main.py, paste them under this section.
+
+
+# =============================================================================
+# MESSAGE HANDLER
+# =============================================================================
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    settings = get_settings()
+
+    if user_id != settings.admin_id:
+        return
+
+    pesan = update.message.text if update.message else None
+    if not pesan:
+        return
+
+    mode = get_user_mode(user_id)
+
+    logger.info(f"📨 Message from {user_id} | mode={mode} | text={pesan[:80]}")
+
+    if mode == "paused":
+        await update.message.reply_text(
+            "💜 Sesi sedang di-pause. Kirim **/resume** untuk lanjut.",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Roleplay mode
+    if mode == "roleplay":
+        if not ROLEPLAY_AVAILABLE:
+            await update.message.reply_text("Roleplay belum tersedia.", parse_mode="Markdown")
+            return
+        try:
+            roleplay = await get_anora_roleplay()
+            respons = await roleplay.process(pesan)
+            await update.message.reply_text(respons, parse_mode="Markdown")
+            return
+        except Exception as e:
+            logger.error(f"❌ Roleplay error: {e}", exc_info=True)
+            await update.message.reply_text("*Nova bingung sebentar*", parse_mode="Markdown")
+            return
+
+    # Role mode
+    if mode == "role" and ROLE_MANAGER_AVAILABLE:
+        active_role = get_active_role(user_id)
+        if active_role:
+            try:
+                role_manager = get_role_manager()
+                respons = await role_manager.chat(active_role, pesan)
+                await update.message.reply_text(respons, parse_mode="Markdown")
+                return
+            except Exception as e:
+                logger.error(f"Role chat error: {e}", exc_info=True)
+                await update.message.reply_text("Maaf, ada error.")
+                return
+
+    # Default chat mode
+    await update.message.reply_text(
+        "*Nova tersenyum*\n\n\"Iya, Mas. Nova dengerin kok.\"",
+        parse_mode="Markdown",
+    )
+
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.error(f"Global error handler: {context.error}", exc_info=True)
+    try:
+        if update and update.effective_message:
+            await update.effective_message.reply_text(
+                "❌ Terjadi error internal. Silakan coba lagi nanti, Mas.",
+                parse_mode="Markdown",
+            )
+    except Exception:
         pass
-    
-    # =========================================================================
-    # MEMORY METHODS (SAMA SEPERTI NOVA)
-    # =========================================================================
-    
-    def add_conversation(self, mas_msg: str, role_msg: str = ""):
-        """Tambah percakapan ke memory"""
-        self.conversations.append({
-            'timestamp': time.time(),
-            'mas': mas_msg[:200],
-            'role': role_msg[:200]
-        })
-        if len(self.conversations) > 50:
-            self.conversations = self.conversations[-50:]
-    
-    def add_important_moment(self, moment: str):
-        """Tambah momen penting"""
-        self.important_moments.append(moment)
-        if len(self.important_moments) > 20:
-            self.important_moments = self.important_moments[-20:]
-        self.tracker.add_to_timeline("Momen Penting", moment[:100])
-    
-    def _add_to_short_term(self, kejadian: str, tipe: str):
-        """Tambah ke short-term memory (via tracker)"""
-        self.tracker.add_to_timeline(kejadian, tipe)
-    
-    def _add_to_long_term_memory(self, category: str, konten: str, deskripsi: str):
-        """Tambah ke long-term memory permanen"""
-        if category not in self.long_term_memory:
-            self.long_term_memory[category] = []
-        
-        self.long_term_memory[category].append({
-            'konten': konten,
-            'deskripsi': deskripsi,
-            'timestamp': time.time(),
-            'level': self.relationship.level
-        })
-        
-        if len(self.long_term_memory[category]) > 100:
-            self.long_term_memory[category].pop(0)
-        
-        logger.info(f"📝 {self.name} long-term memory: {category} - {deskripsi[:50]}")
-    
-    # =========================================================================
-    # CAN DO ACTION (BERDASARKAN LEVEL)
-    # =========================================================================
-    
-    def can_do_action(self, action: str) -> Tuple[bool, str]:
-        """Cek apakah role boleh melakukan aksi tertentu berdasarkan fase hubungan"""
-        unlock = self.relationship.get_current_unlock()
-        
-        action_map = {
-            'flirt': unlock.boleh_flirt,
-            'pegang_tangan': unlock.boleh_pegang_tangan,
-            'peluk': unlock.boleh_peluk,
-            'cium': unlock.boleh_cium,
-            'buka_baju': unlock.boleh_buka_baju,
-            'vulgar': unlock.boleh_vulgar,
-            'intim': unlock.boleh_intim,
-            'panggil_sayang': unlock.boleh_panggil_sayang
+
+
+# =============================================================================
+# WEBHOOK & SERVER
+# =============================================================================
+async def webhook_handler(request: web.Request):
+    global _application
+
+    if request.method != "POST":
+        return web.Response(text="Use POST", status=405)
+
+    if not _application:
+        return web.Response(status=503, text="Bot not ready")
+
+    settings = get_settings()
+
+    # Optional secret verification
+    secret = settings.webhook.secret_token
+    if secret:
+        header_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        if header_secret != secret:
+            return web.Response(status=401, text="Invalid secret token")
+
+    try:
+        update_data = await request.json()
+        upd = Update.de_json(update_data, _application.bot)
+        await _application.process_update(upd)
+        return web.Response(text="OK", status=200)
+    except Exception as e:
+        logger.error(f"Webhook error: {e}", exc_info=True)
+        return web.Response(status=500, text="Error")
+
+
+async def health_handler(request: web.Request):
+    settings = get_settings()
+    return web.json_response(
+        {
+            "status": "healthy",
+            "bot": "ANORA-V2",
+            "version": "2.0.0",
+            "anora_available": ANORA_AVAILABLE,
+            "roleplay_available": ROLEPLAY_AVAILABLE,
+            "role_manager_available": ROLE_MANAGER_AVAILABLE,
+            "db_path": str(getattr(settings.database, "path", "unknown")),
+            "timestamp": datetime.now().isoformat(),
         }
-        
-        if action not in action_map:
-            return True, "Boleh"
-        
-        if action_map[action]:
-            return True, "Boleh"
-        
-        phase = self.relationship.phase
-        reasons = {
-            'flirt': f"Fase {phase.value}, belum waktunya flirt.",
-            'pegang_tangan': f"Fase {phase.value}, belum waktunya pegang tangan.",
-            'peluk': f"Fase {phase.value}, belum waktunya peluk.",
-            'cium': f"Fase {phase.value}, belum waktunya cium.",
-            'buka_baju': f"Fase {phase.value}, belum waktunya buka baju.",
-            'vulgar': f"Fase {phase.value}, belum waktunya vulgar.",
-            'intim': f"Fase {phase.value}, belum waktunya intim.",
-            'panggil_sayang': f"Fase {phase.value}, belum waktunya panggil sayang."
-        }
-        
-        return False, reasons.get(action, "Belum waktunya.")
-    
-    # =========================================================================
-    # GREETING & CONFLICT RESPONSE (DAPAT DIOVERRIDE)
-    # =========================================================================
-    
-    def get_greeting(self) -> str:
-        """Dapatkan greeting - OVERRIDE DI SUBCLASS"""
-        hour = time.localtime().tm_hour
-        if 5 <= hour < 11:
-            waktu = "pagi"
-        elif 11 <= hour < 15:
-            waktu = "siang"
-        elif 15 <= hour < 18:
-            waktu = "sore"
-        else:
-            waktu = "malam"
-        
-        return f"{self.panggilan}... {waktu}. Ada apa?"
-    
-    def get_conflict_response(self) -> str:
-        """Respons saat konflik - OVERRIDE DI SUBCLASS"""
-        return "*diam sebentar*"
-    
-    # =========================================================================
-    # CONTEXT FOR PROMPT (DENGAN STATE TRACKER - WAJIB)
-    # =========================================================================
-    
-    def get_context_for_prompt(self) -> str:
-        """Dapatkan konteks untuk prompt AI dengan State Tracker"""
-        
-        # Timeline dari tracker (WAJIB)
-        timeline_context = self.tracker.get_timeline_context(10)
-        
-        # Emotional summary
-        emo_summary = self._get_emotion_summary()
-        
-        # Relationship summary
-        rel_summary = self.relationship.get_phase_description()
-        unlock_summary = self.relationship.get_unlock_summary()
-        
-        # Conflict summary
-        conflict_summary = self.conflict.get_conflict_response_guideline()
-        
-        return f"""
-{timeline_context}
+    )
 
-═══════════════════════════════════════════════════════════════
-IDENTITAS & PENAMPILAN:
-═══════════════════════════════════════════════════════════════
-Nama: {self.name} ({self.nickname})
-Panggilan ke Mas: "{self.panggilan}"
-Hubungan dengan Nova: {self.hubungan_dengan_nova}
-Penampilan: {self.appearance[:200]}
 
-═══════════════════════════════════════════════════════════════
-SITUASI SAAT INI (DARI TRACKER):
-═══════════════════════════════════════════════════════════════
-POSISI: {self.tracker.position}
-LOKASI: {self.tracker.location}
-AKTIVITAS: {self.tracker.activity}
+async def root_handler(request: web.Request):
+    return web.json_response({"name": "ANORA-V2", "version": "2.0.0", "status": "running"})
 
-{self.tracker.get_clothing_state_for_prompt()}
 
-{emo_summary}
+# =============================================================================
+# BACKGROUND LOOPS
+# =============================================================================
+async def save_state_loop():
+    """
+    Periodic full save:
+    - persistent.save_all_states(brain, emotional, relationship, conflict)
+    - roleplay.save_state() if active
+    """
+    while True:
+        await asyncio.sleep(60)
 
-{rel_summary}
+        if not ANORA_AVAILABLE:
+            continue
 
-{unlock_summary}
+        try:
+            persistent = await get_anora_persistent()
 
-{conflict_summary}
+            brain = get_anora_brain()
+            emotional = get_emotional_engine()
+            relationship = get_relationship_manager()
+            conflict = get_conflict_engine()
 
-═══════════════════════════════════════════════════════════════
-PERCAKAPAN TERAKHIR:
-═══════════════════════════════════════════════════════════════
-{chr(10).join([f"Mas: {c['mas']}" for c in self.conversations[-5:]])}
+            # Full save
+            await persistent.save_all_states(brain, emotional, relationship, conflict)
 
-═══════════════════════════════════════════════════════════════
-⚠️ ATURAN WAJIB:
-═══════════════════════════════════════════════════════════════
-1. BACA TIMELINE DI ATAS! Itu 10 kejadian terakhir. WAJIB lanjutkan alur!
-2. JANGAN LUPA konteks pakaian! JANGAN tiba-tiba rapi kalo baru dibuka!
-3. JANGAN LUPA masih dalam intim kalo fase bukan NONE!
-4. KAMU TAHU Mas punya Nova - ini mempengaruhi perasaanmu!
-5. RESPON NATURAL: 2-4 kalimat, bahasa campuran Indo-Inggris-gaul
-6. JANGAN PAKAI TEMPLATE! Setiap respons harus UNIK!
+            # Roleplay extra save (only if active)
+            if ROLEPLAY_AVAILABLE:
+                roleplay = await get_anora_roleplay()
+                if getattr(roleplay, "is_active", False):
+                    await roleplay.save_state()
 
-═══════════════════════════════════════════════════════════════
-RESPON {self.name}:
-"""
-    
-    def _get_emotion_summary(self) -> str:
-        """Dapatkan ringkasan emosi"""
-        def bar(value, char="💜"):
-            filled = int(value / 10)
-            return char * filled + "⚪" * (10 - filled)
-        
-        return f"""
-╔══════════════════════════════════════════════════════════════╗
-║                    💜 EMOSI {self.name.upper()} SAAT INI                 ║
-╠══════════════════════════════════════════════════════════════╣
-║ Sayang:  {bar(self.emotional.sayang)} {self.emotional.sayang:.0f}%
-║ Rindu:   {bar(self.emotional.rindu, '🌙')} {self.emotional.rindu:.0f}%
-║ Trust:   {bar(self.emotional.trust, '🤝')} {self.emotional.trust:.0f}%
-║ Mood:    {self.emotional.mood:+.0f}
-╠══════════════════════════════════════════════════════════════╣
-║ Desire:  {bar(self.emotional.desire, '💕')} {self.emotional.desire:.0f}%
-║ Arousal: {bar(self.emotional.arousal, '🔥')} {self.emotional.arousal:.0f}%
-║ Tension: {bar(self.emotional.tension, '⚡')} {self.emotional.tension:.0f}%
-╠══════════════════════════════════════════════════════════════╣
-║ Cemburu: {bar(self.conflict.cemburu, '💢')} {self.conflict.cemburu:.0f}%
-║ Kecewa:  {bar(self.conflict.kecewa, '💔')} {self.conflict.kecewa:.0f}%
-╚══════════════════════════════════════════════════════════════╝
-"""
-    
-    # =========================================================================
-    # FORMAT STATUS
-    # =========================================================================
-    
-    def format_status(self) -> str:
-        """Format status role untuk ditampilkan"""
-        style = self.emotional.get_current_style()
-        phase = self.relationship.phase
-        unlock = self.relationship.get_current_unlock()
-        
-        def bar(value, char="💜"):
-            filled = int(value / 10)
-            return char * filled + "⚪" * (10 - filled)
-        
-        # Intimacy status
-        intimacy_status = ""
-        if self.tracker.intimacy_phase != IntimacyPhase.NONE:
-            duration = 0
-            if self.tracker.intimacy_start_time:
-                duration = int((time.time() - self.tracker.intimacy_start_time) // 60)
-            intimacy_status = f"""
-🔥 **SESI INTIM AKTIF**
-- Fase: {self.tracker.intimacy_phase.value.upper()}
-- Climax: {self.tracker.climax_count}x
-- Durasi: {duration} menit
-"""
-        
-        # Physical condition
-        condition_emoji = {
-            PhysicalCondition.FRESH: "💪",
-            PhysicalCondition.TIRED: "😊",
-            PhysicalCondition.EXHAUSTED: "😩",
-            PhysicalCondition.WEAK: "😵"
-        }.get(self.tracker.physical_condition, "😐")
-        
-        # Role flags summary (dari subclass)
-        flags_summary = self._get_flags_summary()
-        
-        return f"""
-╔══════════════════════════════════════════════════════════════╗
-║                    👤 {self.name} ({self.nickname})                         ║
-╠══════════════════════════════════════════════════════════════╣
-║ FASE: {phase.value.upper()} ({self.relationship.level}/12)
-║ STYLE: {style.value.upper()}
-║ HUBUNGAN: {self.hubungan_dengan_nova}
-╠══════════════════════════════════════════════════════════════╣
-║ EMOSI:
-║   Sayang: {bar(self.emotional.sayang)} {self.emotional.sayang:.0f}%
-║   Rindu:  {bar(self.emotional.rindu, '🌙')} {self.emotional.rindu:.0f}%
-║   Trust:  {bar(self.emotional.trust, '🤝')} {self.emotional.trust:.0f}%
-╠══════════════════════════════════════════════════════════════╣
-║ DESIRE: {bar(self.emotional.desire, '💕')} {self.emotional.desire:.0f}%
-║ AROUSAL: {bar(self.emotional.arousal, '🔥')} {self.emotional.arousal:.0f}%
-{intimacy_status}
-╠══════════════════════════════════════════════════════════════╣
-║ KONFLIK: {self.conflict.get_conflict_summary()}
-╠══════════════════════════════════════════════════════════════╣
-║ UNLOCK:
-║   Flirt: {'✅' if unlock.boleh_flirt else '❌'} | Vulgar: {'✅' if unlock.boleh_vulgar else '❌'}
-║   Intim: {'✅' if unlock.boleh_intim else '❌'} | Cium: {'✅' if unlock.boleh_cium else '❌'}
-╠══════════════════════════════════════════════════════════════╣
-║ 👗 PAKAIAN: {self.tracker.get_clothing_summary()[:40]}
-║ 📍 LOKASI: {self.tracker.location}
-║ 💪 KONDISI: {condition_emoji} {self.tracker.physical_condition.value}
-{flags_summary}
-╚══════════════════════════════════════════════════════════════╝
-"""
-    
-    def _get_flags_summary(self) -> str:
-        """Dapatkan ringkasan flags - OVERRIDE DI SUBCLASS"""
-        return ""
-    
-    # =========================================================================
-    # SERIALIZATION
-    # =========================================================================
-    
-    def to_dict(self) -> Dict:
-        """Serialize ke dict untuk database"""
-        return {
-            'name': self.name,
-            'nickname': self.nickname,
-            'role_type': self.role_type,
-            'panggilan': self.panggilan,
-            'hubungan_dengan_nova': self.hubungan_dengan_nova,
-            'appearance': self.appearance,
-            
-            # Engines
-            'emotional': self.emotional.to_dict(),
-            'relationship': self.relationship.to_dict(),
-            'conflict': self.conflict.to_dict(),
-            
-            # State Tracker
-            'tracker': self.tracker.to_dict(),
-            
-            # Memory
-            'conversations': self.conversations[-30:],
-            'important_moments': self.important_moments[-10:],
-            'long_term_memory': self.long_term_memory,
-            'role_flags': self.role_flags,
-            
-            # Timestamps
-            'created_at': self.created_at,
-            'last_interaction': self.last_interaction
-        }
-    
-    def from_dict(self, data: Dict):
-        """Load dari dict"""
-        # Engines
-        self.emotional.from_dict(data.get('emotional', {}))
-        self.relationship.from_dict(data.get('relationship', {}))
-        self.conflict.from_dict(data.get('conflict', {}))
-        
-        # State Tracker
-        if 'tracker' in data:
-            self.tracker.from_dict(data['tracker'])
-        
-        # Memory
-        self.conversations = data.get('conversations', [])
-        self.important_moments = data.get('important_moments', [])
-        self.long_term_memory = data.get('long_term_memory', self.long_term_memory)
-        self.role_flags = data.get('role_flags', {})
-        
-        # Timestamps
-        self.last_interaction = data.get('last_interaction', time.time())
-        
-        logger.info(f"📀 Role {self.name} loaded from database")
+            logger.info("💾 Autosave OK (full)")
+        except Exception as e:
+            logger.error(f"Autosave error: {e}", exc_info=True)
+
+
+async def auto_backup_loop():
+    """
+    Auto backup every 6 hours, if enabled.
+    """
+    settings = get_settings()
+    if not settings.features.auto_backup_enabled:
+        logger.info("Auto backup disabled by settings")
+        return
+
+    while True:
+        await asyncio.sleep(21600)  # 6 hours
+
+        if not ANORA_AVAILABLE:
+            continue
+
+        try:
+            persistent = await get_anora_persistent()
+            db_path = persistent.db_path
+            if db_path.exists():
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_path = _backup_dir / f"anora_v2_auto_{timestamp}.db"
+                shutil.copy(db_path, backup_path)
+                logger.info(f"💾 Auto backup saved: {backup_path.name}")
+        except Exception as e:
+            logger.error(f"Auto backup error: {e}", exc_info=True)
+
+
+# =============================================================================
+# MAIN BOT CLASS
+# =============================================================================
+class AnoraBot:
+    def __init__(self):
+        self.application: Optional[Application] = None
+        self._shutdown_flag = False
+        self._save_task: Optional[asyncio.Task] = None
+        self._backup_task: Optional[asyncio.Task] = None
+        self._runner: Optional[web.AppRunner] = None
+
+    async def init_anora(self) -> bool:
+        """
+        Initialize + LOAD from DB once at startup.
+        """
+        logger.info("💜 Initializing ANORA-V2 (startup load)...")
+
+        if not ANORA_AVAILABLE:
+            logger.warning("ANORA not available; skipping init_anora")
+            return False
+
+        try:
+            persistent = await get_anora_persistent()
+
+            brain = get_anora_brain()
+            emotional = get_emotional_engine()
+            relationship = get_relationship_manager()
+            conflict = get_conflict_engine()
+
+            # Load everything (including tracker if your persistent implements it)
+            await persistent.load_all_states(brain, emotional, relationship, conflict)
+
+            # Sync wrappers after load (if available)
+            try:
+                brain._sync_all()
+            except Exception:
+                pass
+
+            logger.info("✅ Startup load completed")
+            logger.info(f"STATE | phase={relationship.phase.value} | level={relationship.level}/12 | style={emotional.get_current_style().value}")
+            return True
+        except Exception as e:
+            logger.error(f"init_anora error: {e}", exc_info=True)
+            return False
+
+    async def init_application(self) -> Application:
+        settings = get_settings()
+        logger.info("🔧 Initializing Telegram application...")
+
+        request = HTTPXRequest(connection_pool_size=50, connect_timeout=60)
+        app = ApplicationBuilder().token(settings.telegram_token).request(request).build()
+
+        # Full handler registration
+        app.add_handler(CommandHandler("start", start_command))
+        app.add_handler(CommandHandler("nova", nova_command))
+        app.add_handler(CommandHandler("status", status_command))
+        app.add_handler(CommandHandler("flashback", flashback_command))
+        app.add_handler(CommandHandler("roleplay", roleplay_command))
+        app.add_handler(CommandHandler("pindah", pindah_command))
+        app.add_handler(CommandHandler("role", role_command))
+        app.add_handler(CommandHandler("statusrole", statusrole_command))
+        app.add_handler(CommandHandler("batal", back_to_nova))
+        app.add_handler(CommandHandler("pause", pause_session))
+        app.add_handler(CommandHandler("resume", resume_session))
+        app.add_handler(CommandHandler("backup", backup_command))
+        app.add_handler(CommandHandler("help", help_command))
+
+        # Message handler must be last
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+        app.add_error_handler(error_handler)
+
+        handler_count = sum(len(h) for h in app.handlers.values())
+        logger.info(f"✅ Handlers registered: {handler_count}")
+        return app
+
+    async def setup_webhook(self) -> bool:
+        settings = get_settings()
+        webhook_url = settings.webhook.url
+
+        if not webhook_url:
+            logger.warning("🌐 No webhook URL found, webhook will NOT be set.")
+            return False
+
+        logger.info(f"🔗 Setting webhook to: {webhook_url}")
+
+        try:
+            await self.application.bot.delete_webhook(drop_pending_updates=True)
+            await self.application.bot.set_webhook(
+                url=webhook_url,
+                allowed_updates=["message", "callback_query"],
+                drop_pending_updates=True,
+                secret_token=settings.webhook.secret_token,
+            )
+            info = await self.application.bot.get_webhook_info()
+            logger.info(f"📡 Webhook info: {info.url}")
+            return info.url == webhook_url
+        except Exception as e:
+            logger.error(f"Webhook setup error: {e}", exc_info=True)
+            return False
+
+    async def start_web_server(self):
+        settings = get_settings()
+        port = int(os.environ.get("PORT", settings.webhook.port))
+
+        app = web.Application()
+        app.router.add_get("/", root_handler)
+        app.router.add_get("/health", health_handler)
+        app.router.add_post(settings.webhook.path, webhook_handler)
+
+        self._runner = web.AppRunner(app)
+        await self._runner.setup()
+
+        site = web.TCPSite(self._runner, "0.0.0.0", port)
+        await site.start()
+
+        logger.info(f"🌐 Web server running on port {port}")
+        logger.info(f" Health check: http://localhost:{port}/health")
+        logger.info(f" Webhook endpoint: POST http://localhost:{port}{settings.webhook.path}")
+        if settings.webhook.url:
+            logger.info(f" Public webhook: {settings.webhook.url}")
+
+    async def start(self):
+        global _application
+
+        logger.info("=" * 70)
+        logger.info("🚀 ANORA-V2 Starting...")
+        logger.info("=" * 70)
+
+        await self.init_anora()
+
+        self.application = await self.init_application()
+        await self.application.initialize()
+        await self.application.start()
+
+        _application = self.application
+        logger.info("✅ Telegram Application started and set globally")
+
+        webhook_ok = await self.setup_webhook()
+        logger.info(f"WEBHOOK | ok={webhook_ok}")
+
+        # Start background loops
+        self._save_task = asyncio.create_task(save_state_loop())
+        self._backup_task = asyncio.create_task(auto_backup_loop())
+
+        # Always start web server
+        await self.start_web_server()
+
+        logger.info("=" * 70)
+        logger.info("✨ ANORA-V2 is ready!")
+        logger.info(f"👑 Admin ID: {get_settings().admin_id}")
+        logger.info("=" * 70)
+
+        while not self._shutdown_flag:
+            await asyncio.sleep(1)
+
+    async def shutdown(self):
+        logger.info("🛑 Shutting down...")
+        self._shutdown_flag = True
+
+        # Stop loops
+        for task in [self._save_task, self._backup_task]:
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+        # Final save
+        if ANORA_AVAILABLE:
+            try:
+                persistent = await get_anora_persistent()
+                brain = get_anora_brain()
+                emotional = get_emotional_engine()
+                relationship = get_relationship_manager()
+                conflict = get_conflict_engine()
+
+                await persistent.save_all_states(brain, emotional, relationship, conflict)
+
+                if ROLEPLAY_AVAILABLE:
+                    roleplay = await get_anora_roleplay()
+                    if getattr(roleplay, "is_active", False):
+                        await roleplay.save_state()
+
+                logger.info("💾 Final state saved")
+            except Exception as e:
+                logger.error(f"Final save error: {e}", exc_info=True)
+
+        # Stop telegram
+        if self.application:
+            try:
+                await self.application.stop()
+                await self.application.shutdown()
+                logger.info("✅ Telegram application stopped")
+            except Exception as e:
+                logger.error(f"Error stopping application: {e}", exc_info=True)
+
+        # Stop web server
+        if self._runner:
+            await self._runner.cleanup()
+            logger.info("✅ Web server stopped")
+
+        logger.info("👋 Goodbye from ANORA-V2!")
+
+
+# =============================================================================
+# ENTRY POINT
+# =============================================================================
+async def main():
+    bot = AnoraBot()
+
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, lambda: asyncio.create_task(bot.shutdown()))
+        except NotImplementedError:
+            pass
+
+    try:
+        await bot.start()
+    except asyncio.CancelledError:
+        logger.info("Bot stopped")
+    except Exception as e:
+        logger.error(f"Main error: {e}", exc_info=True)
+        raise
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by keyboard interrupt")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}", exc_info=True)
+        sys.exit(1)
