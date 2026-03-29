@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
+from roles.manager import get_role_manager
 
 from aiohttp import web
 from telegram import Update
@@ -813,6 +814,8 @@ class AnoraBot:
         app.add_handler(CommandHandler("flashback", flashback_command))
         app.add_handler(CommandHandler("roleplay", roleplay_command))
         app.add_handler(CommandHandler("pindah", pindah_command))
+        app.add_handler(CommandHandler("role", role_command))
+        app.add_handler(CommandHandler("statusrole", statusrole_command))
         app.add_handler(CommandHandler("role", role_command))
         app.add_handler(CommandHandler("statusrole", statusrole_command))
         app.add_handler(CommandHandler("batal", back_to_nova))
