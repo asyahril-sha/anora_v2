@@ -337,18 +337,16 @@ class AnoraRoleplay:
         await self.save_state()
 
         return (
-            "🎭 **ANORA-V2 - Mode Roleplay Aktif!**
-\n"
-            f"📍 **{loc['nama']}**
-"
-            f"{loc['deskripsi']}\n\n"
-            f"👗 **Nova:** {self.brain.clothing.format_nova()}\n"
-            f"💪 **Stamina Nova:** {self.stamina.nova_current}% ({self.stamina.get_nova_status()})
-"
-            f"💜 **Fase:** {self.relationship.phase.value} (Level {self.relationship.level}/12)\n"
-            f"🎭 **Gaya:** {self.emotional.get_current_style().value}\n\n"
-            "Kirim pesan untuk melanjutkan."
-        )
+            f"""🎭 **ANORA-V2 - Mode Roleplay Aktif!**
+
+📍 **{loc['nama']}**
+{loc['deskripsi']}
+
+👗 **Nova:** {self.brain.clothing.format_nova()}
+💜 **Fase:** {self.relationship.phase.value} (Level {self.relationship.level}/12)
+🎭 **Gaya:** {self.emotional.get_current_style().value}
+"""
+        ).strip()
 
     async def stop(self) -> str:
         """Stop roleplay session"""
