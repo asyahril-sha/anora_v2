@@ -232,10 +232,13 @@ async def roleplay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler /backup"""
     user_id = update.effective_user.id
     settings = get_settings()
+
     if user_id != settings.admin_id:
         return
+
     if not ANORA_AVAILABLE:
         await update.message.reply_text("ANORA-V2 tidak tersedia.")
         return
@@ -246,6 +249,22 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not db_path.exists():
             await update.message.reply_text("❌ Database tidak ditemukan!")
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = _backup_dir / f"anora_v2_backup_{timestamp}.db"
+        shutil.copy(db_path, backup_path)
+
+        size_kb = db_path.stat().st_size / 1024
+
+        await update.message.reply_text(
+            f"✅ Backup saved: `{backup_path.name}`
+Size: {size_kb:.2f} KB",
+            parse_mode="Markdown",
+        )
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Backup gagal: {e}")
             return
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
