@@ -275,7 +275,7 @@ Size: {size_kb:.2f} KB",
         
         await update.message.reply_text(
             f"✅ Backup saved: `{backup_path.name}`
-Size: {size_kb:.2f} KB",
+        Size: {size_kb:.2f} KB",
             parse_mode="Markdown",
         )
     
