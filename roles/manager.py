@@ -230,7 +230,7 @@ ATURAN:
 
 RESPON:
 """
-    return prompt
+        return prompt
     
     def _get_style_guideline(self, role, style) -> str:
         """Dapatkan pedoman gaya bicara berdasarkan emotional style"""
