@@ -676,6 +676,9 @@ from config import get_settings
 
 _anora_persistent: Optional[PersistentMemory] = None
 
+# Compatibility alias for old imports (module-level)
+anora_persistent = None
+
 async def get_anora_persistent() -> PersistentMemory:
     global _anora_persistent
     if _anora_persistent is None:
@@ -683,3 +686,5 @@ async def get_anora_persistent() -> PersistentMemory:
         _anora_persistent = PersistentMemory(db_path=settings.database.path)
         await _anora_persistent.init()
     return _anora_persistent
+
+__all__ = ["PersistentMemory", "get_anora_persistent", "anora_persistent"]
