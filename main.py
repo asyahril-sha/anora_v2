@@ -254,13 +254,13 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         size_kb = db_path.stat().st_size / 1024
         await update.message.reply_text(
-        (
-            f"✅ Backup saved: `{backup_path.name}`
-        "
-            f"Size: {size_kb:.2f} KB"
-        ),
-        parse_mode="Markdown",
-    )
+            (
+                f"✅ Backup saved: `{backup_path.name}`
+            "
+                f"Size: {size_kb:.2f} KB"
+            ),
+            parse_mode="Markdown",
+        )
     except Exception as e:
         await update.message.reply_text(f"❌ Backup gagal: {e}")
 
