@@ -1128,7 +1128,8 @@ RESPON NOVA (HARUS ORIGINAL, SESUAI KONTEKS DI ATAS):
             'toilet mall': (LocationType.PUBLIC, LocationDetail.PUB_TOILET_MALL),
             'bioskop': (LocationType.PUBLIC, LocationDetail.PUB_BIOSKOP),
             'taman': (LocationType.PUBLIC, LocationDetail.PUB_TAMAN),
-            'kantor': (LocationType.PUBLIC, LocationDetail.PUB_KANTOR)
+            'kantor': (LocationType.PUBLIC, LocationDetail.PUB_KANTOR),
+            'kamar': (LocationType.KOST_NOVA, LocationDetail.KOST_KAMAR),
         }
         
         for key, (loc_type, loc_detail) in mapping.items():
