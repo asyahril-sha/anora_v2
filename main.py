@@ -331,7 +331,7 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         menu = "📋 Role yang tersedia:\n\n"
         for r in roles:
             menu += f"• /role {r['id']} - {r['nama']} (Level {r['level']})
-"
+    "
         menu += "\nKetik /batal kalo mau balik ke Nova."
         await update.message.reply_text(menu)
         return
