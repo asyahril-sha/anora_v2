@@ -385,8 +385,7 @@ async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception:
         status = "Status role tidak tersedia."
 
-    await update.message.reply_text(status, parse_mode="Markdown")
-
+    await update.message.reply_text(respon)
 
 async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
