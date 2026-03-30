@@ -286,20 +286,27 @@ GAYA BICARA: NEUTRAL (NORMAL)
     
     def get_all_roles(self) -> List[Dict]:
         """Dapatkan semua role dengan levelnya"""
-        return [
-            {
-                'id': role_id,
-                'nama': role.name,
-                'nickname': role.nickname,
-                'level': role.relationship.level,
-                'phase': role.relationship.phase.value,
-                'panggilan': role.panggilan,
-                'hubungan': role.hubungan_dengan_nova,
-                'hijab': role.clothing.get('hijab', True),
-                'appearance': role.appearance[:80] + "..."
-            }
-            for role_id, role in self.roles.items()
-        ]
+        results = []
+        for role_id, role in self.roles.items():
+            try:
+                hijab_on = bool(role.tracker.clothing.get("hijab", {}).get("on", False))
+            except Exception:
+                hijab_on = False
+
+            results.append(
+                {
+                    "id": role_id,
+                    "nama": role.name,
+                    "nickname": role.nickname,
+                    "level": role.relationship.level,
+                    "phase": role.relationship.phase.value,
+                    "panggilan": role.panggilan,
+                    "hubungan": role.hubungan_dengan_nova,
+                    "hijab": hijab_on,
+                    "appearance": (role.appearance[:80] + "...") if role.appearance else "",
+                }
+            )
+        return results
     
     def get_active_role(self) -> Optional[str]:
         """Dapatkan role yang sedang aktif"""
