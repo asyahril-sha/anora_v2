@@ -19,8 +19,7 @@ from .integration import (
     AnoraRoleplay,
     StaminaSystem,
     IntimacySession,
-    get_anora_roleplay,
-    anora_roleplay
+    get_anora_roleplay
 )
 
 __all__ = [
