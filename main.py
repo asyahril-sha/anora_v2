@@ -170,8 +170,6 @@ async def nova_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     settings = get_settings()
 
-    logger.info(f"📨 /nova from user {user_id}")
-
     if user_id != settings.admin_id:
         await update.message.reply_text("Maaf, Nova cuma untuk Mas. 💜")
         return
@@ -197,11 +195,17 @@ async def nova_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         greeting = "*Nova duduk santai*\n\n\"Malam, Mas...\""
 
-    # 1 line safe string
-    await update.message.reply_text(
-        f"💜 **NOVA DI SINI, MAS** 💜\n\n{greeting}\n\n**Status singkat:**\n- Fase: {relationship.phase.value.upper()} (Level {relationship.level}/12)\n- Gaya: {style.value.upper()}\n",
-        parse_mode="Markdown",
-    )
+    text = "\n".join([
+        "💜 NOVA DI SINI, MAS 💜",
+        "",
+        greeting,
+        "",
+        "Status singkat:",
+        f"- Fase: {relationship.phase.value.upper()} (Level {relationship.level}/12)",
+        f"- Gaya: {style.value.upper()}",
+    ])
+
+    await update.message.reply_text(text)  # tanpa parse_mode biar aman
 
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -258,25 +262,19 @@ async def roleplay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not ROLEPLAY_AVAILABLE:
-        await update.message.reply_text(
-            "Roleplay belum tersedia. Cek log Railway untuk error import roleplay.",
-            parse_mode="Markdown",
-        )
+        await update.message.reply_text("Roleplay belum tersedia. Cek log Railway untuk error import roleplay.")
         return
 
     mode = get_user_mode(user_id)
     if mode == "paused":
-        await update.message.reply_text(
-            "💜 Sesi sedang di-pause.\n\nKirim **/resume** untuk lanjut.",
-            parse_mode="Markdown",
-        )
+        await update.message.reply_text("Sesi sedang di-pause. Kirim /resume untuk lanjut.")
         return
 
     set_user_mode(user_id, "roleplay")
 
-    roleplay = await get_anora_roleplay()
-    intro = await roleplay.start()
-    await update.message.reply_text(intro, parse_mode="Markdown")
+    rp = await get_anora_roleplay()
+    intro = await rp.start()
+    await update.message.reply_text(intro)  # tanpa Markdown biar aman
 
 
 async def pindah_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
