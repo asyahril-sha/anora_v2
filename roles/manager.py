@@ -89,13 +89,25 @@ class RoleManager:
     def switch_role(self, role_id: str) -> str:
         """Switch ke role tertentu"""
         if role_id not in self.roles:
-            return f"Role '{role_id}' gak ada. Pilih: ipar, teman_kantor, pelakor, istri_orang"
-        
+            return "Role tidak ditemukan. Pilih: ipar, teman_kantor, pelakor, istri_orang"
+
         self.active_role = role_id
         role = self.roles[role_id]
-        
-        # Ambil greeting yang sesuai
+
         greeting = role.get_greeting()
+        style = role.emotional.get_current_style()
+        phase = role.relationship.phase
+
+        return (
+            f"💕 **{role.name} ({role.nickname})** - {role_id.upper()}\n\n"
+            f"*{role.hubungan_dengan_nova}*\n\n"
+            f"*Penampilan:* {role.appearance[:120]}...\n\n"
+            f"\"{greeting}\"\n\n"
+            f"📊 **Level:** {role.relationship.level}/12 | **Fase:** {phase.value.upper()}\n"
+            f"🎭 **Style:** {style.value.upper()}\n"
+            f"💕 **Sayang:** {role.emotional.sayang:.0f}% | **Rindu:** {role.emotional.rindu:.0f}%\n\n"
+            "Kirim **/batal** kalo mau balik ke Nova."
+        )
         
         return f"""💕 **{role.name} ({role.nickname})** - {role_id.upper()}
 
