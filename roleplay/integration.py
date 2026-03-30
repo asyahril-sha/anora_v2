@@ -393,11 +393,9 @@ class AnoraRoleplay:
                 self.emotional.tension = 0
 
                 await self.save_state()
-                return (
-                    "*Nova menarik napas, lalu menenangkan diri*\n\n"
-                    f"💪 **Stamina Nova:** {self.stamina.nova_current}% | **Mas:** {self.stamina.mas_current}%
-"
-                    f"🧾 **Catatan hari ini:** {self.stamina.climax_today}x"
+                return f"*Gerakan makin cepat*\n\n\"...\"\n\n💪 **Stamina Nova:** {self.stamina.nova_current}% | **Mas:** {self.stamina.mas_current}%
+💦 **Climax hari ini:** {self.stamina.climax_today}x"
+                
                 )
 
         # Proses dengan AI
