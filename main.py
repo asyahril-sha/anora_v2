@@ -320,10 +320,7 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not ROLE_MANAGER_AVAILABLE:
-        await update.message.reply_text(
-            "Role manager belum tersedia. Cek log Railway untuk error import roles.manager.",
-            parse_mode="Markdown",
-        )
+        await update.message.reply_text("Role manager belum tersedia. Cek log Railway untuk error import roles.manager.")
         return
 
     args = context.args
@@ -331,22 +328,24 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not args:
         roles = role_manager.get_all_roles()
-        menu = "📋 **Role yang tersedia:**\n\n"
+        menu = "📋 Role yang tersedia:\n\n"
         for r in roles:
-            menu += f"• `/role {r['id']}` - **{r['nama']}** (Level {r['level']})\n"
-        menu += "\n_Ketik /batal kalo mau balik ke Nova._"
-        await update.message.reply_text(menu, parse_mode="Markdown")
+            menu += f"• /role {r['id']} - {r['nama']} (Level {r['level']})
+"
+        menu += "\nKetik /batal kalo mau balik ke Nova."
+        await update.message.reply_text(menu)
         return
 
     role_id = args[0].lower()
-
     set_user_mode(user_id, "role", role_id)
+
     try:
         respon = role_manager.switch_role(role_id)
-        await update.message.reply_text(respon, parse_mode="Markdown")
+        # IMPORTANT: kirim TANPA Markdown supaya tidak kena 'Can't parse entities'
+        await update.message.reply_text(respon)
     except Exception as e:
         logger.error(f"Role switch error: {e}", exc_info=True)
-        await update.message.reply_text("Maaf, ada error saat switch role.", parse_mode="Markdown")
+        await update.message.reply_text("Maaf, ada error saat switch role.")
 
 
 async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -357,15 +356,12 @@ async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     if not ROLE_MANAGER_AVAILABLE:
-        await update.message.reply_text("Role manager belum tersedia.", parse_mode="Markdown")
+        await update.message.reply_text("Role manager belum tersedia.")
         return
 
     mode = get_user_mode(user_id)
     if mode != "role":
-        await update.message.reply_text(
-            "💜 Tidak ada role yang sedang aktif.\n\nGunakan **/role <id>** dulu ya, Mas.",
-            parse_mode="Markdown",
-        )
+        await update.message.reply_text("💜 Tidak ada role yang sedang aktif.\n\nGunakan /role <id> dulu ya, Mas.")
         return
 
     active_role_id = get_active_role(user_id)
@@ -382,10 +378,12 @@ async def statusrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     try:
         status = role.format_status()
-    except Exception:
+    except Exception as e:
+        logger.error(f"Status role error: {e}", exc_info=True)
         status = "Status role tidak tersedia."
 
-    await update.message.reply_text(respon)
+    # Kirim tanpa Markdown untuk aman
+    await update.message.reply_text(status)
 
 async def back_to_nova(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
