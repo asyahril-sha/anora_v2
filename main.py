@@ -525,46 +525,22 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     mode = get_user_mode(user_id)
-    logger.info(f"📨 Message from {user_id} | mode={mode} | text={pesan[:80]}")
 
     if mode == "paused":
-        await update.message.reply_text(
-            "💜 Sesi sedang di-pause. Kirim **/resume** untuk lanjut.",
-            parse_mode="Markdown",
-        )
+        await update.message.reply_text("Sesi sedang di-pause. Kirim /resume untuk lanjut.")
         return
 
     if mode == "roleplay":
         if not ROLEPLAY_AVAILABLE:
-            await update.message.reply_text("Roleplay belum tersedia.", parse_mode="Markdown")
+            await update.message.reply_text("Roleplay belum tersedia.")
             return
-        try:
-            roleplay = await get_anora_roleplay()
-            respons = await roleplay.process(pesan)
-            await update.message.reply_text(respons, parse_mode="Markdown")
-            return
-        except Exception as e:
-            logger.error(f"❌ Roleplay error: {e}", exc_info=True)
-            await update.message.reply_text("*Nova bingung sebentar*", parse_mode="Markdown")
-            return
+        rp = await get_anora_roleplay()
+        resp = await rp.process(pesan)
+        await update.message.reply_text(resp)
+        return
 
-    if mode == "role" and ROLE_MANAGER_AVAILABLE:
-        active_role = get_active_role(user_id)
-        if active_role:
-            try:
-                role_manager = get_role_manager()
-                respons = await role_manager.chat(active_role, pesan)
-                await update.message.reply_text(respons, parse_mode="Markdown")
-                return
-            except Exception as e:
-                logger.error(f"Role chat error: {e}", exc_info=True)
-                await update.message.reply_text("Maaf, ada error.")
-                return
-
-    await update.message.reply_text(
-        "*Nova tersenyum*\n\n\"Iya, Mas. Nova dengerin kok.\"",
-        parse_mode="Markdown",
-    )
+    # mode chat normal
+    await update.message.reply_text("*Nova tersenyum*\n\n\"Iya, Mas. Nova dengerin kok.\"")
 
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
