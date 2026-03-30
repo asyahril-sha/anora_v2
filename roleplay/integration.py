@@ -359,5 +359,6 @@ async def get_anora_roleplay():
             if _anora_instance is None:
                 _anora_instance = AnoraRoleplay()
                 await _anora_instance.init()
+                anora_roleplay = _anora_instance
 
     return _anora_instance
