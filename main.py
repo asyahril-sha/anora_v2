@@ -328,12 +328,12 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not args:
         roles = role_manager.get_all_roles()
-        menu = "📋 Role yang tersedia:\n\n"
+        lines = ["📋 Role yang tersedia:", ""]
         for r in roles:
-            menu += f"• /role {r['id']} - {r['nama']} (Level {r['level']})
-    "
-        menu += "\nKetik /batal kalo mau balik ke Nova."
-        await update.message.reply_text(menu)
+            lines.append(f"• /role {r['id']} - {r['nama']} (Level {r['level']})")
+        lines.append("")
+        lines.append("Ketik /batal kalo mau balik ke Nova.")
+        await update.message.reply_text("\n".join(lines))
         return
 
     role_id = args[0].lower()
@@ -341,8 +341,7 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         respon = role_manager.switch_role(role_id)
-        # IMPORTANT: kirim TANPA Markdown supaya tidak kena 'Can't parse entities'
-        await update.message.reply_text(respon)
+        await update.message.reply_text(respon)  # tanpa Markdown supaya aman
     except Exception as e:
         logger.error(f"Role switch error: {e}", exc_info=True)
         await update.message.reply_text("Maaf, ada error saat switch role.")
