@@ -357,6 +357,7 @@ async def get_anora_roleplay():
     if _anora_instance is None:
         async with _lock:
             if _anora_instance is None:
-                _anora_instance = RoleplayAI()
+                _anora_instance = AnoraRoleplay()
+                await _anora_instance.init()
 
     return _anora_instance
