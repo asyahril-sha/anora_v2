@@ -348,11 +348,15 @@ class AnoraRoleplay:
 # =============================================================================
 # SINGLETON
 # =============================================================================
-_anora_roleplay: Optional[AnoraRoleplay] = None
+_anora_instance = None
+_lock = asyncio.Lock()
 
-async def get_anora_roleplay() -> AnoraRoleplay:
-    global _anora_roleplay
-    if _anora_roleplay is None:
-        _anora_roleplay = AnoraRoleplay()
-        await _anora_roleplay.init()
-    return _anora_roleplay
+async def get_anora_roleplay():
+    global _anora_instance
+
+    if _anora_instance is None:
+        async with _lock:
+            if _anora_instance is None:
+                _anora_instance = RoleplayAI()
+
+    return _anora_instance
